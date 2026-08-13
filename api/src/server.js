@@ -75,6 +75,62 @@ app.get('/family/members', requireAuth, allowRoles('admin','adult','viewer'), as
   res.json(result.rows);
 });
 
+const accountSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  type: z.enum(['checking','savings','cash','investment']),
+  balanceCents: z.number().int().min(-999999999999).max(999999999999).default(0),
+  isPrivate: z.boolean().default(false)
+});
+
+app.get('/accounts', requireAuth, async (req, res) => {
+  const result = await query(`select id,name,type,balance_cents,is_private,owner_user_id
+    from accounts where family_id=$1 and (is_private=false or owner_user_id=$2) order by name`,
+    [req.auth.familyId, req.auth.sub]);
+  res.json(result.rows);
+});
+
+app.post('/accounts', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = accountSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da conta inválidos' });
+  const id = crypto.randomUUID();
+  const { name, type, balanceCents, isPrivate } = parsed.data;
+  await query(`insert into accounts (id,family_id,owner_user_id,name,type,balance_cents,is_private)
+    values ($1,$2,$3,$4,$5,$6,$7)`, [id, req.auth.familyId, req.auth.sub, name, type, balanceCents, isPrivate]);
+  res.status(201).json({ id, name, type, balance_cents: balanceCents, is_private: isPrivate });
+});
+
+const transactionSchema = z.object({
+  accountId: z.uuid(),
+  type: z.enum(['income','expense']),
+  description: z.string().trim().min(2).max(140),
+  amountCents: z.number().int().positive().max(999999999999),
+  occurredOn: z.iso.date()
+});
+
+app.get('/transactions', requireAuth, async (req, res) => {
+  const result = await query(`select t.id,t.type,t.description,t.amount_cents,t.occurred_on,t.account_id,a.name account_name
+    from transactions t join accounts a on a.id=t.account_id
+    where t.family_id=$1 and (a.is_private=false or a.owner_user_id=$2)
+    order by t.occurred_on desc,t.created_at desc limit 200`, [req.auth.familyId, req.auth.sub]);
+  res.json(result.rows);
+});
+
+app.post('/transactions', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
+  const parsed = transactionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do lançamento inválidos' });
+  const { accountId, type, description, amountCents, occurredOn } = parsed.data;
+  const account = await query(`select id,is_private,owner_user_id from accounts where id=$1 and family_id=$2`, [accountId, req.auth.familyId]);
+  if (!account.rows[0] || (account.rows[0].is_private && account.rows[0].owner_user_id !== req.auth.sub)) return res.status(404).json({ error: 'Conta não encontrada' });
+  const id = crypto.randomUUID();
+  await transaction(async client => {
+    await client.query(`insert into transactions (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on)
+      values ($1,$2,$3,$4,$5,$6,$7,$8)`, [id, req.auth.familyId, accountId, req.auth.sub, type, description, amountCents, occurredOn]);
+    await client.query(`update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3`,
+      [type === 'income' ? amountCents : -amountCents, accountId, req.auth.familyId]);
+  });
+  res.status(201).json({ id });
+});
+
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 try {
   await migrate();
