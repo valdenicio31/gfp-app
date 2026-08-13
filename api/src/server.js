@@ -28,6 +28,13 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+app.get('/address/cep/:cep', rateLimit({windowMs:60*1000,limit:30}), async(req,res)=>{
+  const cep=String(req.params.cep||'').replace(/\D/g,'');
+  if(!/^\d{8}$/.test(cep)) return res.status(400).json({error:'CEP deve ter 8 números'});
+  try{const response=await fetch(`https://viacep.com.br/ws/${cep}/json/`,{signal:AbortSignal.timeout(5000)});if(!response.ok)throw new Error('provider');const data=await response.json();if(data.erro)return res.status(404).json({error:'CEP não encontrado'});res.json({cep:data.cep,street:data.logradouro||'',complement:data.complemento||'',district:data.bairro||'',city:data.localidade||'',state:data.uf||''});}
+  catch(error){if(error.message==='provider')return res.status(502).json({error:'Serviço de CEP indisponível'});res.status(504).json({error:'A consulta de CEP demorou demais'});}
+});
+
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(80),
   familyName: z.string().trim().min(2).max(80),
