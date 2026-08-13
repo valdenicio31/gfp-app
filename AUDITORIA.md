@@ -9,10 +9,12 @@
 | 13/08/2026 | Qualidade | WARN | Navegador E2E | GFP-TEST-001 | 1 | BLOQUEADO | Navegador Playwright não instalado no runtime | Substituído por simulação DOM local; não é falha do aplicativo |
 | 13/08/2026 | Qualidade | INFO | Testes funcionais | GFP-TEST-002 | 1 | SUCESSO | Fluxos principais aprovados | Cadastro, cálculos, orçamento, filtro, edição, exclusão e persistência validados |
 | 13/08/2026 | Segurança | INFO | Privacidade local | GFP-SEC-001 | 1 | SUCESSO | Nenhum dado financeiro transmitido | Persistência via localStorage e backups gerados pelo próprio usuário |
+| 13/08/2026 | GitHub | INFO | Publicação de código | GFP-GH-001 | 1 | SUCESSO | Beta publicada no repositório privado | valdenicio31/gfp-app; branch main; arquivos essenciais verificados por leitura |
+| 13/08/2026 | Render | INFO | Publicação web | GFP-RENDER-001 | 1 | SUCESSO | Site estático gratuito implantado | Serviço gfp-app; status live; nenhum recurso pago ou banco criado |
+| 13/08/2026 | Validação | INFO | Teste público | GFP-TEST-003 | 1 | SUCESSO | Aplicativo e ativos responderam HTTP 200 | HTML, app.js, manifest.webmanifest e sw.js validados em https://gfp-app.onrender.com |
 
 ## Regras
 
 - Não registrar senhas, tokens, chaves ou dados financeiros reais na auditoria.
 - Nenhum custo ou publicação externa sem autorização adequada.
 - Falhas críticas bloqueiam a declaração de entrega pública.
-
