@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#102a43"/>
+  <rect x="70" y="70" width="372" height="372" rx="84" fill="#f2b134"/>
+  <text x="256" y="305" text-anchor="middle" font-family="Arial,sans-serif" font-size="150" font-weight="900" fill="#102a43">GFP</text>
+</svg>
