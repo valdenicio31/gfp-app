@@ -8,7 +8,7 @@
 | 04 | Famílias, usuários, perfis e permissões | 10% | Cadastro destacado, administrador único, 20 membros, perfis padrão e personalizados |
 | 05 | Núcleo financeiro multiusuário | 12% | Contas e lançamentos conectados à interface real |
 | 06 | Central da Família e dashboard individual | 10% | Três meses simulados e visões familiar/individual aplicadas |
-| 07 | Contas, cartões e parcelamentos | 8% | Planejada |
+| 07 | Contas, cartões e parcelamentos | 8% | Dashboard comparativo e projeções concluídos; cadastros transacionais pendentes |
 | 08 | Orçamentos, metas e reserva | 8% | Planejada |
 | 09 | Dashboards avançados e semáforos | 10% | Comparativo receitas x despesas, série de três meses e semáforos habilitados |
 | 10 | Alertas e inteligência financeira | 6% | Simulador educativo CDI com ranking de três instituições |
@@ -16,7 +16,7 @@
 | 12 | Segurança, LGPD, auditoria e testes | 5% | Planejada |
 | 13 | Publicação e homologação comercial | 2% | Planejada |
 
-**Progresso funcional ponderado:** 76%.
+**Progresso funcional ponderado:** 80%.
 
 > A versão atual é uma prévia navegável. Login, permissões e números são demonstrativos até a conexão com autenticação e banco de dados de produção.
 
@@ -35,3 +35,5 @@
 **Checkpoint visual:** gráfico comparativo mensal de receitas e despesas, destaque do mês selecionado e atalhos diretos para cadastro de usuários e perfis.
 
 **Checkpoint investimentos:** simulação interativa de Nubank, Mercado Pago e PagBank, com valor, prazo, CDI ilustrativo, ranking automático e aviso educativo.
+
+**Checkpoint cartões:** comparativo de três cartões, faturas e limites, evolução mensal, uso por familiar, categorias, semáforos, alertas e projeções futuras com proteção da visão individual.
