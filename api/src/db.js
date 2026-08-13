@@ -1,4 +1,6 @@
 import pg from 'pg';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 const { Pool } = pg;
 export const pool = new Pool({
@@ -25,4 +27,10 @@ export async function transaction(work) {
   } finally {
     client.release();
   }
+}
+
+export async function migrate() {
+  const migrationPath = fileURLToPath(new URL('../sql/001_initial.sql', import.meta.url));
+  const sql = await readFile(migrationPath, 'utf8');
+  await pool.query(sql);
 }
