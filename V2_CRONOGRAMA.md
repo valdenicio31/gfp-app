@@ -19,3 +19,5 @@
 **Progresso funcional ponderado:** 30%.
 
 > A versão atual é uma prévia navegável. Login, permissões e números são demonstrativos até a conexão com autenticação e banco de dados de produção.
+
+**Checkpoint de homologação:** branch `gfp-familiar-v2`, PR em rascunho e prévia isolada da V1.
