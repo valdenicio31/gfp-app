@@ -6,7 +6,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { query, transaction } from './db.js';
+import { migrate, query, transaction } from './db.js';
 import { allowRoles, requireAuth, signToken } from './auth.js';
 
 const app = express();
@@ -76,4 +76,10 @@ app.get('/family/members', requireAuth, allowRoles('admin','adult','viewer'), as
 });
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
-app.listen(port, () => console.log(`gfp-familiar-api:${port}`));
+try {
+  await migrate();
+  app.listen(port, () => console.log(`gfp-familiar-api:${port}`));
+} catch (error) {
+  console.error('Falha ao preparar o banco de dados', error.message);
+  process.exit(1);
+}
