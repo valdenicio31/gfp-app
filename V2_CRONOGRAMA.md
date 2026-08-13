@@ -16,7 +16,7 @@
 | 12 | Segurança, LGPD, auditoria e testes | 5% | Planejada |
 | 13 | Publicação e homologação comercial | 2% | Planejada |
 
-**Progresso funcional ponderado:** 84%.
+**Progresso funcional ponderado:** 85%.
 
 > A versão atual é uma prévia navegável. Login, permissões e números são demonstrativos até a conexão com autenticação e banco de dados de produção.
 
@@ -38,4 +38,4 @@
 
 **Checkpoint cartões:** comparativo de três cartões, faturas e limites, evolução mensal, uso por familiar, categorias, semáforos, alertas e projeções futuras com proteção da visão individual.
 
-**Checkpoint cadastral:** usuários com nome, CPF validado e mascarado, e-mail, nascimento, celular/WhatsApp, endereço completo iniciado pelo CEP, link oficial dos Correios, foto ou avatar e associação visual de emojis aos perfis.
+**Checkpoint cadastral:** usuários com nome, CPF validado e mascarado, e-mail, nascimento, celular/WhatsApp, endereço completo com preenchimento automático pelo CEP, foto ou avatar e associação visual de emojis aos perfis.
