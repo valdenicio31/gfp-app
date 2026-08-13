@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#102a43" />
+  <meta name="description" content="GFP — Gestão Financeira Pessoal" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>GFP — Gestão Financeira Pessoal</title>
+</head>
+<body>
+  <header class="topbar">
+    <div><span class="logo">GFP</span><div><strong>Gestão Financeira Pessoal</strong><small>Seu dinheiro com clareza</small></div></div>
+    <button id="themeButton" class="icon-button" aria-label="Alternar tema">◐</button>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div><p class="eyebrow">VISÃO FINANCEIRA</p><h1>Olá! Vamos cuidar das suas finanças.</h1><p id="periodLabel">Resumo do período selecionado</p></div>
+      <button id="newButton" class="primary">+ Novo lançamento</button>
+    </section>
+
+    <section class="filters panel">
+      <label>Período<input id="monthFilter" type="month" /></label>
+      <label>Tipo<select id="typeFilter"><option value="all">Todos</option><option value="income">Receitas</option><option value="expense">Despesas</option></select></label>
+      <label>Categoria<select id="categoryFilter"><option value="all">Todas</option></select></label>
+      <label>Buscar<input id="searchFilter" type="search" placeholder="Descrição..." /></label>
+    </section>
+
+    <section class="cards" aria-label="Indicadores financeiros">
+      <article class="metric income"><span>Receitas</span><strong id="incomeValue">R$ 0,00</strong><small id="incomeCount">0 lançamentos</small></article>
+      <article class="metric expense"><span>Despesas</span><strong id="expenseValue">R$ 0,00</strong><small id="expenseCount">0 lançamentos</small></article>
+      <article class="metric balance"><span>Saldo</span><strong id="balanceValue">R$ 0,00</strong><small id="savingsRate">Poupança: 0%</small></article>
+      <article class="metric budget"><span>Orçamento mensal</span><strong id="budgetValue">R$ 0,00</strong><small id="budgetProgress">Defina sua meta</small></article>
+    </section>
+
+    <section class="grid two">
+      <article class="panel"><div class="section-title"><div><h2>Despesas por categoria</h2><p>Distribuição do período</p></div></div><div id="categoryChart" class="bars empty">Nenhuma despesa no período.</div></article>
+      <article class="panel"><div class="section-title"><div><h2>Evolução mensal</h2><p>Últimos 6 meses</p></div></div><div id="trendChart" class="trend"></div></article>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><div><h2>Lançamentos</h2><p id="transactionCount">0 registros</p></div><div class="actions"><button id="importButton">Importar</button><button id="exportButton">Exportar CSV</button><button id="backupButton">Backup JSON</button></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th class="right">Valor</th><th></th></tr></thead><tbody id="transactionsBody"></tbody></table></div>
+      <div id="emptyState" class="empty-state"><strong>Nenhum lançamento encontrado</strong><span>Cadastre uma receita ou despesa para começar.</span></div>
+    </section>
+
+    <section class="panel settings">
+      <div><h2>Planejamento</h2><p>Defina o limite mensal de despesas para acompanhar seu orçamento.</p></div>
+      <label>Orçamento mensal (R$)<input id="budgetInput" type="number" min="0" step="0.01" placeholder="5000,00" /></label>
+      <button id="saveBudgetButton" class="secondary">Salvar meta</button>
+    </section>
+  </main>
+
+  <dialog id="transactionDialog">
+    <form id="transactionForm" method="dialog">
+      <div class="dialog-title"><div><h2 id="dialogTitle">Novo lançamento</h2><p>Preencha os dados da movimentação.</p></div><button type="button" id="closeDialog" class="icon-button">×</button></div>
+      <input id="transactionId" type="hidden" />
+      <div class="type-toggle"><label><input type="radio" name="transactionType" value="expense" checked /> Despesa</label><label><input type="radio" name="transactionType" value="income" /> Receita</label></div>
+      <label>Descrição<input id="descriptionInput" required maxlength="80" placeholder="Ex.: Supermercado" /></label>
+      <div class="form-grid"><label>Valor (R$)<input id="amountInput" type="number" min="0.01" step="0.01" required /></label><label>Data<input id="dateInput" type="date" required /></label></div>
+      <label>Categoria<select id="categoryInput" required></select></label>
+      <label>Observação<textarea id="notesInput" maxlength="240" rows="3" placeholder="Opcional"></textarea></label>
+      <div class="dialog-actions"><button type="button" id="cancelDialog">Cancelar</button><button type="submit" class="primary">Salvar lançamento</button></div>
+    </form>
+  </dialog>
+
+  <input id="fileInput" type="file" accept=".json,.csv,application/json,text/csv" hidden />
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
