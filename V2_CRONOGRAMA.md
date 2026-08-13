@@ -16,7 +16,7 @@
 | 12 | Segurança, LGPD, auditoria e testes | 5% | Planejada |
 | 13 | Publicação e homologação comercial | 2% | Planejada |
 
-**Progresso funcional ponderado:** 85%.
+**Progresso funcional ponderado:** 88%.
 
 > A versão atual é uma prévia navegável. Login, permissões e números são demonstrativos até a conexão com autenticação e banco de dados de produção.
 
@@ -39,3 +39,5 @@
 **Checkpoint cartões:** comparativo de três cartões, faturas e limites, evolução mensal, uso por familiar, categorias, semáforos, alertas e projeções futuras com proteção da visão individual.
 
 **Checkpoint cadastral:** usuários com nome, CPF validado e mascarado, e-mail, nascimento, celular/WhatsApp, endereço completo com preenchimento automático pelo CEP, foto ou avatar e associação visual de emojis aos perfis.
+
+**Checkpoint operacional:** banco e API preparados para cartões reais do usuário e compras à vista ou parceladas em até 48 vezes, mantendo o escopo familiar exclusivo do administrador.
