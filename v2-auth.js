@@ -19,13 +19,20 @@ async function loadFinance(){
   document.querySelector('#transactionAccount').innerHTML='<option value="">Selecione a conta</option>'+accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
   document.querySelector('#realTransactions').innerHTML=transactions.slice(0,8).map(t=>`<div><span>${t.type==='income'?'🟢':'🔴'} ${t.description}<small>${t.account_name} • ${t.occurred_on}</small></span><strong>${money(t.amount_cents)}</strong></div>`).join('');
 }
+async function loadFamilyAdmin(){
+  const [familyProfiles,members]=await Promise.all([request('/family/profiles',{headers:authHeaders()}),request('/family/members',{headers:authHeaders()})]);
+  document.querySelector('#profileList').innerHTML=familyProfiles.map(p=>`<div class="profile-chip"><span>${p.emoji}</span><b>${p.name}</b><small>${p.base_role==='admin'?'Único administrador':p.base_role}${p.is_default?' • padrão':' • personalizado'}</small></div>`).join('');
+  document.querySelector('#inviteProfile').innerHTML='<option value="">Selecione um perfil</option>'+familyProfiles.filter(p=>p.base_role!=='admin').map(p=>`<option value="${p.id}">${p.emoji} ${p.name}</option>`).join('');
+  document.querySelector('#memberCount').textContent=members.length;
+  document.querySelector('#realMembers').innerHTML=members.map(m=>`<div><span><b>${m.emoji} ${m.name}</b><small>${m.email}</small></span><strong>${m.role==='admin'?'👑 Titular':m.profile_name}</strong></div>`).join('');
+}
 async function loadRealProfile(token){
   const profile=await request('/me',{headers:{Authorization:`Bearer ${token}`}});
   document.querySelector('header small').textContent=`👨‍👩‍👧‍👦 ${profile.family_name.toUpperCase()}`;
   profiles[profile.role]={name:profile.name.split(' ')[0],permission:profiles[profile.role]?.permission||'Acesso familiar'};
   enter(profile.role);
   roleSelect.disabled=true;
-  await loadFinance();
+  await Promise.all([loadFinance(),loadFamilyAdmin()]);
   notify(`Bem-vindo à família ${profile.family_name} 💜`);
 }
 
@@ -65,7 +72,15 @@ document.querySelector('#transactionForm').addEventListener('submit',async event
 });
 document.querySelector('#inviteForm').addEventListener('submit',async event=>{
   event.preventDefault();
-  try{const data=await request('/family/invitations',{method:'POST',headers:authHeaders(),body:JSON.stringify({email:document.querySelector('#inviteEmail').value,role:document.querySelector('#inviteRole').value})});document.querySelector('#inviteResult').innerHTML=`<b>🟢 Convite válido por 7 dias</b><small>Código: ${data.inviteCode}</small>`;event.target.reset()}catch(error){document.querySelector('#inviteResult').textContent=`🔴 ${error.message}`}
+  try{const data=await request('/family/invitations',{method:'POST',headers:authHeaders(),body:JSON.stringify({email:document.querySelector('#inviteEmail').value,profileId:document.querySelector('#inviteProfile').value})});document.querySelector('#inviteResult').innerHTML=`<b>🟢 Convite válido por 7 dias</b><small>Código: ${data.inviteCode}</small>`;event.target.reset()}catch(error){document.querySelector('#inviteResult').textContent=`🔴 ${error.message}`}
 });
+document.querySelector('#profileForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  try{await request('/family/profiles',{method:'POST',headers:authHeaders(),body:JSON.stringify({name:document.querySelector('#profileName').value,baseRole:document.querySelector('#profileBase').value,emoji:document.querySelector('#profileEmoji').value})});event.target.reset();document.querySelector('#profileEmoji').value='👤';await loadFamilyAdmin();notify('🟢 Perfil personalizado criado')}catch(error){notify(`🔴 ${error.message}`)}
+});
+document.querySelectorAll('[data-module]').forEach(button=>button.addEventListener('click',()=>{
+  document.querySelectorAll('[data-module]').forEach(item=>item.classList.toggle('active',item===button));
+  document.querySelectorAll('.module-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`module-${button.dataset.module}`));
+}));
 const existingToken=sessionStorage.getItem('gfp_token');
 if(existingToken) loadRealProfile(existingToken).catch(()=>sessionStorage.removeItem('gfp_token'));
