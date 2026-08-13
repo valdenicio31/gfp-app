@@ -11,12 +11,12 @@
 | 07 | Contas, cartões e parcelamentos | 8% | Planejada |
 | 08 | Orçamentos, metas e reserva | 8% | Planejada |
 | 09 | Dashboards avançados e semáforos | 10% | Comparativo receitas x despesas, série de três meses e semáforos habilitados |
-| 10 | Alertas e inteligência financeira | 6% | Planejada |
+| 10 | Alertas e inteligência financeira | 6% | Simulador educativo CDI com ranking de três instituições |
 | 11 | Licenças e administração | 5% | Planejada |
 | 12 | Segurança, LGPD, auditoria e testes | 5% | Planejada |
 | 13 | Publicação e homologação comercial | 2% | Planejada |
 
-**Progresso funcional ponderado:** 73%.
+**Progresso funcional ponderado:** 76%.
 
 > A versão atual é uma prévia navegável. Login, permissões e números são demonstrativos até a conexão com autenticação e banco de dados de produção.
 
@@ -33,3 +33,5 @@
 **Privacidade validada:** administrador alterna entre toda a família e seus próprios dados; demais membros recebem apenas contas e lançamentos próprios. Demonstração habilitada para usuários, perfis personalizados e junho–agosto de 2026.
 
 **Checkpoint visual:** gráfico comparativo mensal de receitas e despesas, destaque do mês selecionado e atalhos diretos para cadastro de usuários e perfis.
+
+**Checkpoint investimentos:** simulação interativa de Nubank, Mercado Pago e PagBank, com valor, prazo, CDI ilustrativo, ranking automático e aviso educativo.
