@@ -143,9 +143,10 @@ const accountSchema = z.object({
 });
 
 app.get('/accounts', requireAuth, async (req, res) => {
+  const familyScope = req.auth.role === 'admin' && req.query.scope === 'family';
   const result = await query(`select id,name,type,balance_cents,is_private,owner_user_id
-    from accounts where family_id=$1 and (is_private=false or owner_user_id=$2) order by name`,
-    [req.auth.familyId, req.auth.sub]);
+    from accounts where family_id=$1 and ($3::boolean=true or owner_user_id=$2) order by name`,
+    [req.auth.familyId, req.auth.sub, familyScope]);
   res.json(result.rows);
 });
 
@@ -168,10 +169,11 @@ const transactionSchema = z.object({
 });
 
 app.get('/transactions', requireAuth, async (req, res) => {
+  const familyScope = req.auth.role === 'admin' && req.query.scope === 'family';
   const result = await query(`select t.id,t.type,t.description,t.amount_cents,t.occurred_on,t.account_id,a.name account_name
     from transactions t join accounts a on a.id=t.account_id
-    where t.family_id=$1 and (a.is_private=false or a.owner_user_id=$2)
-    order by t.occurred_on desc,t.created_at desc limit 200`, [req.auth.familyId, req.auth.sub]);
+    where t.family_id=$1 and ($3::boolean=true or t.created_by=$2)
+    order by t.occurred_on desc,t.created_at desc limit 200`, [req.auth.familyId, req.auth.sub, familyScope]);
   res.json(result.rows);
 });
 
