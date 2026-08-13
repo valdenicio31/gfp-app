@@ -16,7 +16,7 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boo
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : false }));
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '300kb' }));
 app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30 }));
 
 app.get('/health', async (_req, res) => {
@@ -78,7 +78,7 @@ app.get('/me', requireAuth, async (req, res) => {
 });
 
 app.get('/family/members', requireAuth, allowRoles('admin','adult','viewer'), async (req, res) => {
-  const result = await query(`select u.id,u.name,u.email,m.role,m.status,p.id profile_id,coalesce(p.name,m.role) profile_name,coalesce(p.emoji,'👤') emoji from memberships m join users u on u.id=m.user_id left join family_profiles p on p.id=m.profile_id where m.family_id=$1 order by u.name`, [req.auth.familyId]);
+  const result = await query(`select u.id,u.name,u.email,u.phone,u.avatar_emoji,u.photo_data,u.city,u.state,case when u.cpf is null then null else '***.***.***-'||right(u.cpf,2) end cpf_masked,m.role,m.status,p.id profile_id,coalesce(p.name,m.role) profile_name,coalesce(p.emoji,'👤') emoji from memberships m join users u on u.id=m.user_id left join family_profiles p on p.id=m.profile_id where m.family_id=$1 order by u.name`, [req.auth.familyId]);
   res.json(result.rows);
 });
 
@@ -96,10 +96,13 @@ app.post('/family/profiles',requireAuth,allowRoles('admin'),async(req,res)=>{
   catch(error){res.status(error.code==='23505'?409:500).json({error:error.code==='23505'?'Já existe um perfil com esse nome':'Não foi possível criar o perfil'});}
 });
 
-const inviteSchema = z.object({ email: z.email().transform(value => value.toLowerCase()), profileId: z.uuid() });
+const validCpf=cpf=>{if(!/^\d{11}$/.test(cpf)||/^(\d)\1+$/.test(cpf))return false;const check=size=>{let sum=0;for(let i=0;i<size;i++)sum+=Number(cpf[i])*(size+1-i);const rest=(sum*10)%11;return (rest===10?0:rest)===Number(cpf[size])};return check(9)&&check(10)};
+const inviteSchema = z.object({name:z.string().trim().min(2).max(80),cpf:z.string().refine(validCpf),email:z.email().transform(value=>value.toLowerCase()),birthDate:z.iso.date(),phone:z.string().regex(/^\d{10,11}$/),profileId:z.uuid(),avatarEmoji:z.string().min(1).max(12).default('👤'),photoData:z.string().max(210000).refine(value=>!value||/^data:image\/(png|jpeg|webp);base64,/.test(value)).default(''),cep:z.string().regex(/^\d{8}$/),street:z.string().trim().min(2).max(120),number:z.string().trim().min(1).max(20),complement:z.string().trim().max(80).default(''),district:z.string().trim().min(2).max(80),city:z.string().trim().min(2).max(80),state:z.string().trim().length(2).transform(value=>value.toUpperCase())});
 app.post('/family/invitations', requireAuth, allowRoles('admin'), async (req, res) => {
   const parsed = inviteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Convite inválido' });
+  const duplicate=await query(`select 1 from users where email=$1 or cpf=$2 union all select 1 from invitations where accepted_at is null and expires_at>now() and (email=$1 or cpf=$2) limit 1`,[parsed.data.email,parsed.data.cpf]);
+  if(duplicate.rows[0]) return res.status(409).json({error:'CPF ou e-mail já cadastrado ou com convite pendente'});
   const profile=await query(`select id,base_role from family_profiles where id=$1 and family_id=$2 and base_role<>'admin'`,[parsed.data.profileId,req.auth.familyId]);
   if(!profile.rows[0]) return res.status(404).json({error:'Perfil não encontrado ou não permitido'});
   const count = await query(`select (select count(*) from memberships where family_id=$1 and status in ('active','invited')) +
@@ -109,8 +112,9 @@ app.post('/family/invitations', requireAuth, allowRoles('admin'), async (req, re
   const token = crypto.randomBytes(32).toString('base64url');
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const id = crypto.randomUUID();
-  await query(`insert into invitations (id,family_id,email,role,token_hash,expires_at,created_by,profile_id)
-    values ($1,$2,$3,$4,$5,now()+interval '7 days',$6,$7)`, [id,req.auth.familyId,parsed.data.email,profile.rows[0].base_role,tokenHash,req.auth.sub,profile.rows[0].id]);
+  const d=parsed.data;
+  await query(`insert into invitations (id,family_id,email,role,token_hash,expires_at,created_by,profile_id,name,cpf,birth_date,phone,avatar_emoji,photo_data,cep,street,address_number,complement,district,city,state)
+    values ($1,$2,$3,$4,$5,now()+interval '7 days',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`, [id,req.auth.familyId,d.email,profile.rows[0].base_role,tokenHash,req.auth.sub,profile.rows[0].id,d.name,d.cpf,d.birthDate,d.phone,d.avatarEmoji,d.photoData||null,d.cep,d.street,d.number,d.complement,d.district,d.city,d.state]);
   res.status(201).json({ id, inviteCode: token, expiresInDays: 7 });
 });
 
@@ -128,7 +132,7 @@ app.post('/auth/accept-invitation', async (req, res) => {
   if (!invite.rows[0]) return res.status(404).json({ error: 'Convite inválido ou expirado' });
   const item = invite.rows[0], userId = crypto.randomUUID(), passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await transaction(async client => {
-    await client.query('insert into users (id,name,email,password_hash) values ($1,$2,$3,$4)', [userId,parsed.data.name,item.email,passwordHash]);
+    await client.query(`insert into users (id,name,email,password_hash,cpf,birth_date,phone,avatar_emoji,photo_data,cep,street,address_number,complement,district,city,state) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, [userId,item.name||parsed.data.name,item.email,passwordHash,item.cpf,item.birth_date,item.phone,item.avatar_emoji,item.photo_data,item.cep,item.street,item.address_number,item.complement,item.district,item.city,item.state]);
     await client.query(`insert into memberships (family_id,user_id,role,status,profile_id) values ($1,$2,$3,'active',$4)`, [item.family_id,userId,item.role,item.profile_id]);
     await client.query('update invitations set accepted_at=now() where id=$1', [item.id]);
   });
