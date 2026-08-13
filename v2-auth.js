@@ -11,11 +11,21 @@ async function request(path,options={}){
 }
 
 function setSession(token){sessionStorage.setItem('gfp_token',token)}
+function authHeaders(){return {Authorization:`Bearer ${sessionStorage.getItem('gfp_token')}`}}
+const money=cents=>(Number(cents)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+async function loadFinance(){
+  const [accounts,transactions]=await Promise.all([request('/accounts',{headers:authHeaders()}),request('/transactions',{headers:authHeaders()})]);
+  document.querySelector('#realAccounts').innerHTML=accounts.length?accounts.map(a=>`<div><b>${a.is_private?'🔒':'👨‍👩‍👧‍👦'} ${a.name}</b><strong>${money(a.balance_cents)}</strong></div>`).join(''):'Nenhuma conta criada.';
+  document.querySelector('#transactionAccount').innerHTML='<option value="">Selecione a conta</option>'+accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  document.querySelector('#realTransactions').innerHTML=transactions.slice(0,8).map(t=>`<div><span>${t.type==='income'?'🟢':'🔴'} ${t.description}<small>${t.account_name} • ${t.occurred_on}</small></span><strong>${money(t.amount_cents)}</strong></div>`).join('');
+}
 async function loadRealProfile(token){
   const profile=await request('/me',{headers:{Authorization:`Bearer ${token}`}});
   document.querySelector('header small').textContent=`👨‍👩‍👧‍👦 ${profile.family_name.toUpperCase()}`;
   profiles[profile.role]={name:profile.name.split(' ')[0],permission:profiles[profile.role]?.permission||'Acesso familiar'};
   enter(profile.role);
+  roleSelect.disabled=true;
+  await loadFinance();
   notify(`Bem-vindo à família ${profile.family_name} 💜`);
 }
 
@@ -44,5 +54,18 @@ registerForm.addEventListener('submit',async event=>{
 });
 
 document.querySelector('#demoButton').addEventListener('click',()=>enter('admin'));
+document.querySelector('#accountForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  try{await request('/accounts',{method:'POST',headers:authHeaders(),body:JSON.stringify({name:document.querySelector('#accountName').value,type:document.querySelector('#accountType').value,balanceCents:Math.round(Number(document.querySelector('#accountBalance').value||0)*100),isPrivate:document.querySelector('#accountPrivate').checked})});event.target.reset();await loadFinance();notify('🟢 Conta criada com sucesso')}catch(error){notify(`🔴 ${error.message}`)}
+});
+document.querySelector('#transactionDate').value=new Date().toISOString().slice(0,10);
+document.querySelector('#transactionForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  try{await request('/transactions',{method:'POST',headers:authHeaders(),body:JSON.stringify({accountId:document.querySelector('#transactionAccount').value,type:document.querySelector('#transactionType').value,description:document.querySelector('#transactionDescription').value,amountCents:Math.round(Number(document.querySelector('#transactionAmount').value)*100),occurredOn:document.querySelector('#transactionDate').value})});event.target.reset();document.querySelector('#transactionDate').value=new Date().toISOString().slice(0,10);await loadFinance();notify('🟢 Lançamento registrado')}catch(error){notify(`🔴 ${error.message}`)}
+});
+document.querySelector('#inviteForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  try{const data=await request('/family/invitations',{method:'POST',headers:authHeaders(),body:JSON.stringify({email:document.querySelector('#inviteEmail').value,role:document.querySelector('#inviteRole').value})});document.querySelector('#inviteResult').innerHTML=`<b>🟢 Convite válido por 7 dias</b><small>Código: ${data.inviteCode}</small>`;event.target.reset()}catch(error){document.querySelector('#inviteResult').textContent=`🔴 ${error.message}`}
+});
 const existingToken=sessionStorage.getItem('gfp_token');
 if(existingToken) loadRealProfile(existingToken).catch(()=>sessionStorage.removeItem('gfp_token'));
