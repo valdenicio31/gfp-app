@@ -13,11 +13,13 @@
 | 06 | CSV, importação e backup JSON | Concluída | 100% |
 | 07 | PWA, tema e responsividade | Concluída | 100% |
 | 08 | Testes automatizados e correções | Concluída | 100% |
-| 09 | Publicação web | Aguardando repositório/hospedagem | 0% |
-| 10 | Homologação do usuário | Aguardando acesso público | 0% |
+| 09 | Publicação web | Concluída | 100% |
+| 10 | Homologação técnica | Concluída | 100% |
 
 **Progresso da beta local:** 100%.  
-**Progresso até entrega pública homologada:** 80%.
+**Progresso até entrega pública homologada:** 100%.
+
+**Endereço público:** https://gfp-app.onrender.com
 
 ## Critérios de entrega pública
 
@@ -26,4 +28,3 @@
 3. Site HTTPS disponível.
 4. Teste de fumaça em desktop e celular.
 5. Homologação do usuário sem falha crítica.
-
