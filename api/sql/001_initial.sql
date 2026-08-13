@@ -72,6 +72,31 @@ create table if not exists family_profiles (
 
 alter table memberships add column if not exists profile_id uuid references family_profiles(id) on delete set null;
 alter table invitations add column if not exists profile_id uuid references family_profiles(id) on delete set null;
+alter table users add column if not exists cpf varchar(11) unique;
+alter table users add column if not exists birth_date date;
+alter table users add column if not exists phone varchar(11);
+alter table users add column if not exists avatar_emoji varchar(12) default '👤';
+alter table users add column if not exists photo_data text;
+alter table users add column if not exists cep varchar(8);
+alter table users add column if not exists street varchar(120);
+alter table users add column if not exists address_number varchar(20);
+alter table users add column if not exists complement varchar(80);
+alter table users add column if not exists district varchar(80);
+alter table users add column if not exists city varchar(80);
+alter table users add column if not exists state varchar(2);
+alter table invitations add column if not exists name varchar(80);
+alter table invitations add column if not exists cpf varchar(11);
+alter table invitations add column if not exists birth_date date;
+alter table invitations add column if not exists phone varchar(11);
+alter table invitations add column if not exists avatar_emoji varchar(12) default '👤';
+alter table invitations add column if not exists photo_data text;
+alter table invitations add column if not exists cep varchar(8);
+alter table invitations add column if not exists street varchar(120);
+alter table invitations add column if not exists address_number varchar(20);
+alter table invitations add column if not exists complement varchar(80);
+alter table invitations add column if not exists district varchar(80);
+alter table invitations add column if not exists city varchar(80);
+alter table invitations add column if not exists state varchar(2);
 alter table families alter column member_limit set default 20;
 update families set member_limit=20 where member_limit<20;
 
