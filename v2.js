@@ -1,0 +1,4 @@
+const budgets=[['Moradia',3200,3200,'green'],['Alimentação',2480,2200,'yellow'],['Transporte',1350,1800,'green'],['Cartões',4300,5000,'yellow'],['Lazer',1680,1200,'red']];
+document.querySelector('#budgetRows').innerHTML=budgets.map(([n,v,m,c])=>`<div class="budget-row"><span>${n}</span><div class="track"><div class="fill ${c}" style="width:${Math.min(v/m*100,100)}%"></div></div><strong>R$ ${v.toLocaleString('pt-BR')} / ${m.toLocaleString('pt-BR')}</strong></div>`).join('');
+const members=[['AD','Alex Demo','Administrador','R$ 5.000'],['JD','Jordan Demo','Adulto','R$ 3.500'],['DD','Dependente Demo','Dependente','R$ 500'],['CO','Convidado Demo','Somente leitura','—']];
+document.querySelector('#members').innerHTML=members.map(([i,n,p,v])=>`<div class="member"><span class="pic">${i}</span><span><b>${n}</b><small>${p}</small></span><em>${v}</em></div>`).join('');
