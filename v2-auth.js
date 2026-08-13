@@ -32,7 +32,7 @@ async function loadRealProfile(token){
   profiles[profile.role]={name:profile.name.split(' ')[0],permission:profiles[profile.role]?.permission||'Acesso familiar'};
   window.demoMode=false;enter(profile.role);window.demoMode=false;
   roleSelect.disabled=true;
-  const isAdmin=profile.role==='admin';document.querySelector('[data-view="family"]').hidden=!isAdmin;document.querySelector('[data-view="private"]').classList.toggle('selected',!isAdmin);document.querySelectorAll('[data-module="users"],[data-module="profiles"]').forEach(button=>button.disabled=!isAdmin);await loadFinance(isAdmin?'family':'self');if(isAdmin)await loadFamilyAdmin();
+  const isAdmin=profile.role==='admin';document.querySelector('[data-view="family"]').hidden=!isAdmin;document.querySelector('[data-view="private"]').classList.toggle('selected',!isAdmin);document.querySelectorAll('[data-module="users"],[data-module="profiles"]').forEach(button=>button.disabled=!isAdmin);document.querySelectorAll('[data-open-module]').forEach(button=>button.disabled=!isAdmin);await loadFinance(isAdmin?'family':'self');if(isAdmin)await loadFamilyAdmin();
   notify(`Bem-vindo à família ${profile.family_name} 💜`);
 }
 
