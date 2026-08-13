@@ -4,7 +4,7 @@ create table if not exists families (
   id uuid primary key default gen_random_uuid(),
   name varchar(80) not null,
   license_status varchar(20) not null default 'trial',
-  member_limit smallint not null default 6 check (member_limit between 1 and 20),
+  member_limit smallint not null default 20 check (member_limit between 1 and 20),
   created_at timestamptz not null default now()
 );
 
@@ -59,7 +59,33 @@ create table if not exists invitations (
   created_at timestamptz not null default now()
 );
 
+create table if not exists family_profiles (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  name varchar(50) not null,
+  base_role varchar(20) not null check (base_role in ('admin','adult','dependent','viewer')),
+  emoji varchar(12) not null default '👤',
+  is_default boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique (family_id,name)
+);
+
+alter table memberships add column if not exists profile_id uuid references family_profiles(id) on delete set null;
+alter table invitations add column if not exists profile_id uuid references family_profiles(id) on delete set null;
+alter table families alter column member_limit set default 20;
+update families set member_limit=20 where member_limit<20;
+
+insert into family_profiles (family_id,name,base_role,emoji,is_default)
+select f.id,p.name,p.base_role,p.emoji,true from families f cross join (values
+  ('Administrador','admin','👑'),('Adulto','adult','👤'),('Dependente','dependent','🧒'),('Somente leitura','viewer','👁️')
+) p(name,base_role,emoji) on conflict (family_id,name) do nothing;
+
+update memberships m set profile_id=p.id from family_profiles p
+where m.profile_id is null and p.family_id=m.family_id and p.base_role=m.role and p.is_default=true;
+
 create index if not exists memberships_family_idx on memberships(family_id);
 create index if not exists accounts_family_idx on accounts(family_id);
 create index if not exists transactions_family_date_idx on transactions(family_id,occurred_on desc);
 create index if not exists invitations_family_idx on invitations(family_id,created_at desc);
+create unique index if not exists one_admin_per_family on memberships(family_id) where role='admin' and status='active';
+create index if not exists profiles_family_idx on family_profiles(family_id);
