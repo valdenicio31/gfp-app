@@ -47,6 +47,19 @@ create table if not exists transactions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists invitations (
+  id uuid primary key default gen_random_uuid(),
+  family_id uuid not null references families(id) on delete cascade,
+  email varchar(254) not null,
+  role varchar(20) not null check (role in ('adult','dependent','viewer')),
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  accepted_at timestamptz,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists memberships_family_idx on memberships(family_id);
 create index if not exists accounts_family_idx on accounts(family_id);
 create index if not exists transactions_family_date_idx on transactions(family_id,occurred_on desc);
+create index if not exists invitations_family_idx on invitations(family_id,created_at desc);
