@@ -75,6 +75,43 @@ app.get('/family/members', requireAuth, allowRoles('admin','adult','viewer'), as
   res.json(result.rows);
 });
 
+const inviteSchema = z.object({ email: z.email().transform(value => value.toLowerCase()), role: z.enum(['adult','dependent','viewer']) });
+app.post('/family/invitations', requireAuth, allowRoles('admin'), async (req, res) => {
+  const parsed = inviteSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Convite inválido' });
+  const count = await query(`select (select count(*) from memberships where family_id=$1 and status in ('active','invited')) +
+    (select count(*) from invitations where family_id=$1 and accepted_at is null and expires_at>now()) total`, [req.auth.familyId]);
+  const family = await query('select member_limit from families where id=$1', [req.auth.familyId]);
+  if (Number(count.rows[0].total) >= family.rows[0].member_limit) return res.status(409).json({ error: 'Limite da licença familiar atingido' });
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const id = crypto.randomUUID();
+  await query(`insert into invitations (id,family_id,email,role,token_hash,expires_at,created_by)
+    values ($1,$2,$3,$4,$5,now()+interval '7 days',$6)`, [id,req.auth.familyId,parsed.data.email,parsed.data.role,tokenHash,req.auth.sub]);
+  res.status(201).json({ id, inviteCode: token, expiresInDays: 7 });
+});
+
+app.get('/family/invitations', requireAuth, allowRoles('admin'), async (req, res) => {
+  const result = await query(`select id,email,role,expires_at,accepted_at,created_at from invitations where family_id=$1 order by created_at desc`, [req.auth.familyId]);
+  res.json(result.rows);
+});
+
+const acceptInviteSchema = z.object({ token: z.string().min(32), name: z.string().trim().min(2).max(80), password: z.string().min(10).max(128) });
+app.post('/auth/accept-invitation', async (req, res) => {
+  const parsed = acceptInviteSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do convite inválidos' });
+  const tokenHash = crypto.createHash('sha256').update(parsed.data.token).digest('hex');
+  const invite = await query(`select * from invitations where token_hash=$1 and accepted_at is null and expires_at>now()`, [tokenHash]);
+  if (!invite.rows[0]) return res.status(404).json({ error: 'Convite inválido ou expirado' });
+  const item = invite.rows[0], userId = crypto.randomUUID(), passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  await transaction(async client => {
+    await client.query('insert into users (id,name,email,password_hash) values ($1,$2,$3,$4)', [userId,parsed.data.name,item.email,passwordHash]);
+    await client.query(`insert into memberships (family_id,user_id,role,status) values ($1,$2,$3,'active')`, [item.family_id,userId,item.role]);
+    await client.query('update invitations set accepted_at=now() where id=$1', [item.id]);
+  });
+  res.status(201).json({ token: signToken({ id:userId,family_id:item.family_id,role:item.role }) });
+});
+
 const accountSchema = z.object({
   name: z.string().trim().min(2).max(80),
   type: z.enum(['checking','savings','cash','investment']),
