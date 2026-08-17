@@ -2,6 +2,6 @@
   "name":"gfp-api",
   "private":true,
   "type":"module",
-  "scripts":{"start":"node index.mjs","check":"node --check index.mjs"},
+  "scripts":{"start":"node index.mjs","check":"node --check index.mjs","migrate":"node migrate.mjs"},
   "dependencies":{"pg":"^8.16.3"}
 }
