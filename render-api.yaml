@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: gfp-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gfp-postgres
+          property: connectionString
+      - key: CLIENT_ORIGIN
+        value: https://gfp-app.onrender.com
+      - key: SESSION_SECRET
+        generateValue: true
