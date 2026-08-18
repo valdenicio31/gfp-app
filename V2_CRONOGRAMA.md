@@ -8,7 +8,7 @@
 | 04 | Famílias, usuários, perfis e permissões | 10% | Cadastro destacado, administrador único, 20 membros, perfis padrão e personalizados |
 | 05 | Núcleo financeiro multiusuário | 12% | Contas e lançamentos conectados à interface real |
 | 06 | Central da Família e dashboard individual | 10% | Três meses simulados e visões familiar/individual aplicadas |
-| 07 | Contas, cartões e parcelamentos | 8% | Dashboard, cadastro de cartões e compras parceladas conectados |
+| 07 | Contas, cartões e parcelamentos | 8% | Concluída: cadastros, compras em até 48x, faturas e projeções conectados |
 | 08 | Orçamentos, metas e reserva | 8% | Planejada |
 | 09 | Dashboards avançados e semáforos | 10% | Comparativo receitas x despesas, série de três meses e semáforos habilitados |
 | 10 | Alertas e inteligência financeira | 6% | Simulador educativo CDI com ranking de três instituições |
@@ -43,3 +43,5 @@
 **Checkpoint operacional:** banco e API preparados para cartões reais do usuário e compras à vista ou parceladas em até 48 vezes, mantendo o escopo familiar exclusivo do administrador.
 
 **Checkpoint cartões conectado:** formulários reais e demonstrativos para cadastrar cartões e registrar compras, cálculo instantâneo da parcela e atualização da fatura.
+
+**Homologação da Fase 07:** interface, API e banco reconciliados; cadastro de cartões, registro de compras, parcelamento, leitura das faturas e proteção por `family_id` validados no código.
