@@ -1,17 +1,17 @@
 services:
   - type: web
-    name: gfp-api
+    name: gfp-familiar-api
     runtime: node
-    rootDir: server
-    buildCommand: npm install
+    rootDir: api
+    buildCommand: npm ci
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: gfp-postgres
           property: connectionString
-      - key: CLIENT_ORIGIN
-        value: https://gfp-app.onrender.com
-      - key: SESSION_SECRET
+      - key: ALLOWED_ORIGINS
+        value: https://gfp-gestao-financeira.onrender.com
+      - key: JWT_SECRET
         generateValue: true
