@@ -11,9 +11,19 @@ import { allowRoles, requireAuth, signToken } from './auth.js';
 
 const app = express();
 const port = Number(process.env.PORT || 10000);
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+const missingConfig = ['DATABASE_URL', 'JWT_SECRET'].filter(key => !process.env[key]);
+if (missingConfig.length) {
+  console.error(`Configuração obrigatória ausente: ${missingConfig.join(', ')}`);
+  process.exit(1);
+}
+if (process.env.JWT_SECRET.length < 32) {
+  console.error('JWT_SECRET deve possuir pelo menos 32 caracteres');
+  process.exit(1);
+}
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : false }));
 app.use(express.json({ limit: '300kb' }));
@@ -80,11 +90,11 @@ app.post('/auth/login', async (req, res) => {
 });
 
 app.get('/me', requireAuth, async (req, res) => {
-  const result = await query(`select u.id,u.name,u.email,m.role,m.family_id,f.name family_name from users u join memberships m on m.user_id=u.id join families f on f.id=m.family_id where u.id=$1 and m.family_id=$2`, [req.auth.sub, req.auth.familyId]);
+  const result = await query(`select u.id,u.name,u.email,m.role,m.family_id,f.name family_name from users u join memberships m on m.user_id=u.id join families f on f.id=m.family_id where u.id=$1 and m.family_id=$2 and m.status='active'`, [req.auth.sub, req.auth.familyId]);
   res.json(result.rows[0] || null);
 });
 
-app.get('/family/members', requireAuth, allowRoles('admin','adult','viewer'), async (req, res) => {
+app.get('/family/members', requireAuth, allowRoles('admin'), async (req, res) => {
   const result = await query(`select u.id,u.name,u.email,u.phone,u.avatar_emoji,u.photo_data,u.city,u.state,case when u.cpf is null then null else '***.***.***-'||right(u.cpf,2) end cpf_masked,m.role,m.status,p.id profile_id,coalesce(p.name,m.role) profile_name,coalesce(p.emoji,'👤') emoji from memberships m join users u on u.id=m.user_id left join family_profiles p on p.id=m.profile_id where m.family_id=$1 order by u.name`, [req.auth.familyId]);
   res.json(result.rows);
 });
@@ -156,7 +166,7 @@ const accountSchema = z.object({
 app.get('/accounts', requireAuth, async (req, res) => {
   const familyScope = req.auth.role === 'admin' && req.query.scope === 'family';
   const result = await query(`select id,name,type,balance_cents,is_private,owner_user_id
-    from accounts where family_id=$1 and ($3::boolean=true or owner_user_id=$2) order by name`,
+    from accounts where family_id=$1 and (owner_user_id=$2 or ($3::boolean=true and is_private=false)) order by name`,
     [req.auth.familyId, req.auth.sub, familyScope]);
   res.json(result.rows);
 });
@@ -183,7 +193,7 @@ app.get('/transactions', requireAuth, async (req, res) => {
   const familyScope = req.auth.role === 'admin' && req.query.scope === 'family';
   const result = await query(`select t.id,t.type,t.description,t.amount_cents,t.occurred_on,t.account_id,a.name account_name
     from transactions t join accounts a on a.id=t.account_id
-    where t.family_id=$1 and ($3::boolean=true or t.created_by=$2)
+    where t.family_id=$1 and (a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))
     order by t.occurred_on desc,t.created_at desc limit 200`, [req.auth.familyId, req.auth.sub, familyScope]);
   res.json(result.rows);
 });
@@ -192,8 +202,8 @@ app.post('/transactions', requireAuth, allowRoles('admin','adult','dependent'), 
   const parsed = transactionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Dados do lançamento inválidos' });
   const { accountId, type, description, amountCents, occurredOn } = parsed.data;
-  const account = await query(`select id,is_private,owner_user_id from accounts where id=$1 and family_id=$2`, [accountId, req.auth.familyId]);
-  if (!account.rows[0] || (account.rows[0].is_private && account.rows[0].owner_user_id !== req.auth.sub)) return res.status(404).json({ error: 'Conta não encontrada' });
+  const account = await query(`select id,owner_user_id from accounts where id=$1 and family_id=$2`, [accountId, req.auth.familyId]);
+  if (!account.rows[0] || account.rows[0].owner_user_id !== req.auth.sub) return res.status(404).json({ error: 'Conta não encontrada' });
   const id = crypto.randomUUID();
   await transaction(async client => {
     await client.query(`insert into transactions (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on)
@@ -212,6 +222,11 @@ app.get('/card-purchases',requireAuth,async(req,res)=>{const familyScope=req.aut
 app.post('/card-purchases',requireAuth,allowRoles('admin','adult','dependent'),async(req,res)=>{const parsed=purchaseSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Compra inválida'});const d=parsed.data,card=await query('select id,owner_user_id from credit_cards where id=$1 and family_id=$2',[d.cardId,req.auth.familyId]);if(!card.rows[0]||card.rows[0].owner_user_id!==req.auth.sub)return res.status(404).json({error:'Cartão não encontrado'});const id=crypto.randomUUID();await query(`insert into card_purchases(id,family_id,card_id,created_by,description,category,amount_cents,installments,purchased_on) values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[id,req.auth.familyId,d.cardId,req.auth.sub,d.description,d.category,d.amountCents,d.installments,d.purchasedOn]);res.status(201).json({id})});
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
+app.use((error, _req, res, _next) => {
+  const errorId = crypto.randomUUID();
+  console.error(`[${errorId}] Erro interno da API: ${error?.message || 'erro desconhecido'}`);
+  res.status(500).json({ error: 'Erro interno da API', errorId });
+});
 try {
   await migrate();
   app.listen(port, () => console.log(`gfp-familiar-api:${port}`));
