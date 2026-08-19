@@ -119,3 +119,13 @@ create table if not exists credit_cards (id uuid primary key default gen_random_
 create table if not exists card_purchases (id uuid primary key default gen_random_uuid(),family_id uuid not null references families(id) on delete cascade,card_id uuid not null references credit_cards(id) on delete cascade,created_by uuid not null references users(id) on delete cascade,description varchar(120) not null,category varchar(40) not null,amount_cents bigint not null check(amount_cents>0),installments smallint not null default 1 check(installments between 1 and 48),purchased_on date not null,created_at timestamptz not null default now());
 create index if not exists credit_cards_family_idx on credit_cards(family_id,owner_user_id);
 create index if not exists card_purchases_family_idx on card_purchases(family_id,purchased_on desc);
+
+create table if not exists password_reset_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  token_hash char(64) not null unique,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists password_reset_tokens_user_idx on password_reset_tokens(user_id,expires_at desc);
