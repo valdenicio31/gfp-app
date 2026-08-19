@@ -2,8 +2,9 @@ services:
   - type: web
     name: gfp-gestao-financeira
     runtime: static
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
+    # A V2 atual é uma aplicação estática sem etapa de bundling na raiz.
+    # Não executar npm ci aqui: não existe package.json nesse diretório.
+    staticPublishPath: .
     pullRequestPreviewsEnabled: true
     headers:
       - path: /*
