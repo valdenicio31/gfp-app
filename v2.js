@@ -38,7 +38,7 @@ function enter(profile='admin'){
 document.querySelector('#loginForm').addEventListener('submit',event=>{event.preventDefault();enter('admin')});
 document.querySelectorAll('[data-profile]').forEach(button=>button.addEventListener('click',()=>enter(button.dataset.profile)));
 roleSelect.addEventListener('change',()=>enter(roleSelect.value));
-document.querySelector('#logoutButton').addEventListener('click',()=>loginScreen.classList.remove('hidden'));
+document.querySelector('#logoutButton').addEventListener('click',()=>{sessionStorage.removeItem('gfp_token');location.reload()});
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{
   document.querySelectorAll('[data-view]').forEach(item=>item.classList.toggle('selected',item===button));
   const privateView=button.dataset.view==='private';
