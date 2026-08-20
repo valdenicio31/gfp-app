@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import crypto from 'node:crypto';
 import express from 'express';
 import helmet from 'helmet';
@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { migrate, query, transaction } from './db.js';
 import { allowRoles, requireAuth, signToken } from './auth.js';
+import nodemailer from 'nodemailer';
 
 const app = express();
 const port = Number(process.env.PORT || 10000);
@@ -210,6 +211,7 @@ app.post('/cards',requireAuth,allowRoles('admin','adult'),async(req,res)=>{const
 const purchaseSchema=z.object({cardId:z.uuid(),description:z.string().trim().min(2).max(120),category:z.string().trim().min(2).max(40),amountCents:z.number().int().positive(),installments:z.number().int().min(1).max(48),purchasedOn:z.iso.date()});
 app.get('/card-purchases',requireAuth,async(req,res)=>{const familyScope=req.auth.role==='admin'&&req.query.scope==='family';const result=await query('select p.id,p.card_id,p.description,p.category,p.amount_cents,p.installments,p.purchased_on,ceil(p.amount_cents::numeric/p.installments) installment_cents,c.name card_name,c.last_four,u.name owner_name from card_purchases p join credit_cards c on c.id=p.card_id join users u on u.id=c.owner_user_id where p.family_id=$1 and ($3::boolean=true or c.owner_user_id=$2) order by p.purchased_on desc,p.created_at desc',[req.auth.familyId,req.auth.sub,familyScope]);res.json(result.rows)});
 app.post('/card-purchases',requireAuth,allowRoles('admin','adult','dependent'),async(req,res)=>{const parsed=purchaseSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Compra inválida'});const d=parsed.data,card=await query('select id,owner_user_id from credit_cards where id=$1 and family_id=$2',[d.cardId,req.auth.familyId]);if(!card.rows[0]||card.rows[0].owner_user_id!==req.auth.sub)return res.status(404).json({error:'Cartão não encontrado'});const id=crypto.randomUUID();await query(`insert into card_purchases(id,family_id,card_id,created_by,description,category,amount_cents,installments,purchased_on) values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[id,req.auth.familyId,d.cardId,req.auth.sub,d.description,d.category,d.amountCents,d.installments,d.purchasedOn]);res.status(201).json({id})});
+
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 try {

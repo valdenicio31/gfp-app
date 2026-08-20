@@ -1,4 +1,4 @@
-const API_URL='https://gfp-familiar-api.onrender.com';
+﻿const API_URL='https://gfp-familiar-api.onrender.com';
 const authMessage=document.querySelector('#authMessage');
 const loginForm=document.querySelector('#loginForm');
 const registerForm=document.querySelector('#registerForm');
@@ -100,3 +100,4 @@ document.querySelector('#invitePhoto').addEventListener('change',event=>{const f
 document.querySelectorAll('#emojiGallery button').forEach(button=>button.addEventListener('click',()=>{document.querySelector('#profileEmoji').value=button.textContent;notify(`${button.textContent} Emoji selecionado`)}));
 const existingToken=sessionStorage.getItem('gfp_token');
 if(existingToken) loadRealProfile(existingToken).catch(()=>sessionStorage.removeItem('gfp_token'));
+
