@@ -62,6 +62,7 @@ const baseLoadRealProfile=loadRealProfile;
 loadRealProfile=async function(token){
   const result=await baseLoadRealProfile(token);
   const profile=await request('/me',{headers:{Authorization:'Bearer '+token}});
+  window.currentProfileRole=profile.role;
   await loadCards(profile.role==='admin'?'family':'self',profile.role);
   return result;
 };
