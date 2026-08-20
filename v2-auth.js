@@ -100,4 +100,4 @@ document.querySelector('#invitePhoto').addEventListener('change',event=>{const f
 document.querySelectorAll('#emojiGallery button').forEach(button=>button.addEventListener('click',()=>{document.querySelector('#profileEmoji').value=button.textContent;notify(`${button.textContent} Emoji selecionado`)}));
 const existingToken=sessionStorage.getItem('gfp_token');
 if(existingToken) loadRealProfile(existingToken).catch(()=>sessionStorage.removeItem('gfp_token'));
-github.com/valdenicio31/gfp-app/edit/main/v2-auth.js
+document.querySelector('#firstAccessLink').addEventListener('click',()=>document.querySelector('[data-auth-tab="register"]').click());
