@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { migrate, query, transaction } from './db.js';
 import { allowRoles, requireAuth, signToken } from './auth.js';
 import nodemailer from 'nodemailer';
+import passwordResetRouter from './password-reset.js';
 
 const app = express();
 const port = Number(process.env.PORT || 10000);
@@ -19,6 +20,7 @@ app.use(helmet());
 app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : false }));
 app.use(express.json({ limit: '300kb' }));
 app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30 }));
+app.use('/auth/password-reset', passwordResetRouter);
 
 app.get('/health', async (_req, res) => {
   try {
