@@ -1,0 +1,21 @@
+# Dependências instaladas — reinstale com `npm ci` a partir do package-lock.json
+node_modules/
+
+# Segredos locais. Os arquivos .env.example continuam versionados de propósito.
+.env
+.env.local
+.env.*.local
+
+# Saída de build
+dist/
+
+# Logs de gerenciador de pacotes
+npm-debug.log*
+yarn-error.log*
+.npm/
+
+# Lixo de sistema operacional (Windows, OneDrive e macOS)
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
