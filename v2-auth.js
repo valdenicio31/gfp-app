@@ -100,4 +100,41 @@ document.querySelector('#invitePhoto').addEventListener('change',event=>{const f
 document.querySelectorAll('#emojiGallery button').forEach(button=>button.addEventListener('click',()=>{document.querySelector('#profileEmoji').value=button.textContent;notify(`${button.textContent} Emoji selecionado`)}));
 const existingToken=sessionStorage.getItem('gfp_token');
 if(existingToken) loadRealProfile(existingToken).catch(()=>sessionStorage.removeItem('gfp_token'));
-github.com/valdenicio31/gfp-app/edit/main/v2-auth.js
+
+const FORGOT_HINT='O link expira em 1 hora e só pode ser usado uma vez.';
+const forgotModal=document.querySelector('#modal-forgot-password');
+const forgotForm=document.querySelector('#forgotForm');
+const forgotMessage=document.querySelector('#forgotMessage');
+const forgotSubmit=document.querySelector('#forgotSubmit');
+
+function openForgotPassword(){
+  forgotMessage.textContent=FORGOT_HINT;
+  document.querySelector('#forgotEmail').value=document.querySelector('#loginEmail').value;
+  forgotModal.hidden=false;
+  document.querySelector('#forgotEmail').focus();
+}
+function closeForgotPassword(){
+  forgotModal.hidden=true;forgotForm.reset();forgotMessage.textContent=FORGOT_HINT;
+}
+
+document.querySelector('#firstAccessLink').addEventListener('click',()=>document.querySelector('[data-auth-tab="register"]').click());
+document.querySelector('#forgotPasswordLink').addEventListener('click',openForgotPassword);
+document.querySelector('#forgotClose').addEventListener('click',closeForgotPassword);
+forgotModal.addEventListener('click',event=>{if(event.target===forgotModal)closeForgotPassword()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!forgotModal.hidden)closeForgotPassword()});
+
+forgotForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  forgotSubmit.disabled=true;forgotSubmit.textContent='Enviando...';forgotMessage.textContent='🟡 Enviando link de recuperação...';
+  try{
+    const response=await fetch(`${API_URL}/auth/request-password-reset`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.querySelector('#forgotEmail').value})});
+    if(response.status===404){forgotMessage.textContent='🟡 Recuperação de senha ainda não habilitada no servidor. Procure o administrador da família.';return}
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(data.error||'Não foi possível concluir a operação');
+    forgotMessage.textContent='🟢 Se o e-mail estiver cadastrado, o link de recuperação chegará em instantes.';
+  }catch(error){
+    forgotMessage.textContent=`🔴 ${error.message}`;
+  }finally{
+    forgotSubmit.disabled=false;forgotSubmit.textContent='Enviar link de recuperação';
+  }
+});
