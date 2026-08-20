@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#5b377c" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>GFP Clássico — arquivo de 17/08/2026</title>
+    <!--
+      Versão clássica do GFP, restaurada.
+
+      Este é o build de 17/08/2026 que ficou órfão no repositório quando o
+      commit 0484458 (20/08 03:19) trocou o index.html, que carregava este
+      app, por um redirecionamento para landing.html. Os arquivos nunca foram
+      apagados: seguem em /assets.
+
+      Importante: este app guarda tudo no localStorage do navegador. Não tem
+      login, família nem banco de dados, e não conversa com a API. Os dados
+      ficam só neste computador e neste navegador.
+
+      Não existe código-fonte deste build no repositório, apenas o resultado
+      compilado. Por isso ele é servido como está, sem alterações.
+    -->
+    <script type="module" crossorigin src="/assets/index-BKCjGwjE.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DIEGByIy.css">
+    <style>
+      #gfp-aviso-classico{
+        position:fixed;left:0;right:0;bottom:0;z-index:2147483647;
+        display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:center;
+        padding:8px 14px;background:#17131b;color:#fff;
+        font:600 12.5px/1.4 Inter,"Segoe UI",system-ui,sans-serif;
+        box-shadow:0 -6px 20px #0003;
+      }
+      #gfp-aviso-classico b{color:#ffcf24}
+      #gfp-aviso-classico span{opacity:.82;font-weight:400}
+      #gfp-aviso-classico a{color:#fff;background:#6f13a7;text-decoration:none;padding:5px 11px;border-radius:8px;font-weight:700}
+      #gfp-aviso-classico a:hover{background:#8a1ed0}
+      #gfp-aviso-classico button{
+        background:none;border:0;color:#a8a1b5;font:inherit;font-weight:700;cursor:pointer;padding:5px 8px;
+      }
+      #gfp-aviso-classico button:hover{color:#fff}
+      @media(max-width:640px){#gfp-aviso-classico{font-size:11.5px;padding:7px 10px}}
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <div id="gfp-aviso-classico" role="note">
+      <b>Versão clássica</b>
+      <span>arquivo de 17/08/2026 · dados salvos somente neste navegador</span>
+      <a href="/v2.html">Ir para o GFP Familiar</a>
+      <button type="button" onclick="this.parentNode.remove()" aria-label="Fechar aviso">Fechar</button>
+    </div>
+  </body>
+</html>
