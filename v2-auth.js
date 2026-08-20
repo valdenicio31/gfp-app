@@ -1,7 +1,9 @@
-﻿const API_URL='https://gfp-familiar-api.onrender.com';
+﻿const localHosts=new Set(['localhost','127.0.0.1']);
+const API_URL=globalThis.GFP_API_URL||(localHosts.has(location.hostname)?'http://localhost:10000':'https://gfp-familiar-api.onrender.com');
 const authMessage=document.querySelector('#authMessage');
 const loginForm=document.querySelector('#loginForm');
 const registerForm=document.querySelector('#registerForm');
+const authSafe=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
 async function request(path,options={}){
   const response=await fetch(`${API_URL}${path}`,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
@@ -15,19 +17,21 @@ function authHeaders(){return {Authorization:`Bearer ${sessionStorage.getItem('g
 const money=cents=>(Number(cents)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 async function loadFinance(scope='family'){
   const [accounts,transactions]=await Promise.all([request(`/accounts?scope=${scope}`,{headers:authHeaders()}),request(`/transactions?scope=${scope}`,{headers:authHeaders()})]);
-  document.querySelector('#realAccounts').innerHTML=accounts.length?accounts.map(a=>`<div><b>${a.is_private?'🔒':'👨‍👩‍👧‍👦'} ${a.name}</b><strong>${money(a.balance_cents)}</strong></div>`).join(''):'Nenhuma conta criada.';
-  document.querySelector('#transactionAccount').innerHTML='<option value="">Selecione a conta</option>'+accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
-  document.querySelector('#realTransactions').innerHTML=transactions.slice(0,8).map(t=>`<div><span>${t.type==='income'?'🟢':'🔴'} ${t.description}<small>${t.account_name} • ${t.occurred_on}</small></span><strong>${money(t.amount_cents)}</strong></div>`).join('');
+  document.querySelector('#realAccounts').innerHTML=accounts.length?accounts.map(a=>`<div><b>${a.is_private?'🔒':'👨‍👩‍👧‍👦'} ${authSafe(a.name)}</b><strong>${money(a.balance_cents)}</strong></div>`).join(''):'Nenhuma conta criada.';
+  document.querySelector('#transactionAccount').innerHTML='<option value="">Selecione a conta</option>'+accounts.map(a=>`<option value="${authSafe(a.id)}">${authSafe(a.name)}</option>`).join('');
+  document.querySelector('#realTransactions').innerHTML=transactions.length?transactions.slice(0,8).map(t=>`<div><span>${t.type==='income'?'🟢':'🔴'} ${authSafe(t.description)}<small>${authSafe(t.account_name)} • ${authSafe(t.occurred_on)}</small></span><strong>${money(t.amount_cents)}</strong></div>`).join(''):'Nenhum lançamento registrado.';
 }
 async function loadFamilyAdmin(){
   const [familyProfiles,members]=await Promise.all([request('/family/profiles',{headers:authHeaders()}),request('/family/members',{headers:authHeaders()})]);
-  document.querySelector('#profileList').innerHTML=familyProfiles.map(p=>`<div class="profile-chip"><span>${p.emoji}</span><b>${p.name}</b><small>${p.base_role==='admin'?'Único administrador':p.base_role}${p.is_default?' • padrão':' • personalizado'}</small></div>`).join('');
-  document.querySelector('#inviteProfile').innerHTML='<option value="">Selecione um perfil</option>'+familyProfiles.filter(p=>p.base_role!=='admin').map(p=>`<option value="${p.id}">${p.emoji} ${p.name}</option>`).join('');
+  document.querySelector('#profileList').innerHTML=familyProfiles.map(p=>`<div class="profile-chip"><span>${authSafe(p.emoji)}</span><b>${authSafe(p.name)}</b><small>${p.base_role==='admin'?'Único administrador':authSafe(p.base_role)}${p.is_default?' • padrão':' • personalizado'}</small></div>`).join('');
+  document.querySelector('#inviteProfile').innerHTML='<option value="">Selecione um perfil</option>'+familyProfiles.filter(p=>p.base_role!=='admin').map(p=>`<option value="${authSafe(p.id)}">${authSafe(p.emoji)} ${authSafe(p.name)}</option>`).join('');
   document.querySelector('#memberCount').textContent=members.length;
-  document.querySelector('#realMembers').innerHTML=members.map(m=>`<div><span class="user-avatar">${m.photo_data?`<img src="${m.photo_data}" alt="Foto de ${m.name}">`:m.avatar_emoji||m.emoji}</span><span><b>${m.name}</b><small>${m.email} • ${m.phone||'celular pendente'}</small><small class="masked-data">CPF ${m.cpf_masked||'***.***.***-**'} • ${m.city||'endereço pendente'}</small></span><strong>${m.role==='admin'?'👑 Titular':`${m.emoji} ${m.profile_name}`}</strong></div>`).join('');
+  document.querySelector('#realMembers').innerHTML=members.map(m=>`<div><span class="user-avatar">${m.photo_data?`<img src="${authSafe(m.photo_data)}" alt="Foto de ${authSafe(m.name)}">`:authSafe(m.avatar_emoji||m.emoji)}</span><span><b>${authSafe(m.name)}</b><small>${authSafe(m.email)} • ${authSafe(m.phone||'celular pendente')}</small><small class="masked-data">CPF ${authSafe(m.cpf_masked||'***.***.***-**')} • ${authSafe(m.city||'endereço pendente')}</small></span><strong>${m.role==='admin'?'👑 Titular':`${authSafe(m.emoji)} ${authSafe(m.profile_name)}`}</strong></div>`).join('');
 }
 async function loadRealProfile(token){
   const profile=await request('/me',{headers:{Authorization:`Bearer ${token}`}});
+  if(!profile) throw new Error('Perfil não encontrado ou suspenso');
+  window.currentProfileRole=profile.role;
   document.querySelector('header small').textContent=`👨‍👩‍👧‍👦 ${profile.family_name.toUpperCase()}`;
   profiles[profile.role]={name:profile.name.split(' ')[0],permission:profiles[profile.role]?.permission||'Acesso familiar'};
   window.demoMode=false;enter(profile.role);window.demoMode=false;
@@ -73,12 +77,12 @@ document.querySelector('#transactionForm').addEventListener('submit',async event
 document.querySelector('#inviteForm').addEventListener('submit',async event=>{
   event.preventDefault();
   const payload=getInvitePayload();if(!isValidCpf(payload.cpf)){document.querySelector('#inviteResult').textContent='🔴 CPF inválido. Confira os 11 números.';return}
-  if(window.demoMode){const profile=document.querySelector('#inviteProfile').selectedOptions[0]?.textContent;document.querySelector('#inviteResult').innerHTML=`<b>🟢 ${payload.name} cadastrado na simulação</b><small>${payload.email} • ${profile} • convite válido por 7 dias</small>`;const list=document.querySelector('#realMembers');list.insertAdjacentHTML('beforeend',`<div><span class="user-avatar">${payload.photoData?`<img src="${payload.photoData}" alt="Foto">`:payload.avatarEmoji}</span><span><b>${payload.name}</b><small>${payload.email} • ${payload.phone}</small><small class="masked-data">CPF ***.***.***-${payload.cpf.slice(-2)} • ${payload.city}/${payload.state}</small></span><strong>${profile}</strong></div>`);document.querySelector('#memberCount').textContent=Number(document.querySelector('#memberCount').textContent)+1;resetInviteForm();return}
-  try{const data=await request('/family/invitations',{method:'POST',headers:authHeaders(),body:JSON.stringify(payload)});document.querySelector('#inviteResult').innerHTML=`<b>🟢 Usuário pré-cadastrado; convite válido por 7 dias</b><small>Código: ${data.inviteCode}</small>`;resetInviteForm()}catch(error){document.querySelector('#inviteResult').textContent=`🔴 ${error.message}`}
+  if(window.demoMode){const profile=document.querySelector('#inviteProfile').selectedOptions[0]?.textContent;document.querySelector('#inviteResult').innerHTML=`<b>🟢 ${authSafe(payload.name)} cadastrado na simulação</b><small>${authSafe(payload.email)} • ${authSafe(profile)} • convite válido por 7 dias</small>`;const list=document.querySelector('#realMembers');list.insertAdjacentHTML('beforeend',`<div><span class="user-avatar">${payload.photoData?`<img src="${authSafe(payload.photoData)}" alt="Foto">`:authSafe(payload.avatarEmoji)}</span><span><b>${authSafe(payload.name)}</b><small>${authSafe(payload.email)} • ${authSafe(payload.phone)}</small><small class="masked-data">CPF ***.***.***-${authSafe(payload.cpf.slice(-2))} • ${authSafe(payload.city)}/${authSafe(payload.state)}</small></span><strong>${authSafe(profile)}</strong></div>`);document.querySelector('#memberCount').textContent=Number(document.querySelector('#memberCount').textContent)+1;resetInviteForm();return}
+  try{const data=await request('/family/invitations',{method:'POST',headers:authHeaders(),body:JSON.stringify(payload)});document.querySelector('#inviteResult').innerHTML=`<b>🟢 Usuário pré-cadastrado; convite válido por 7 dias</b><small>Código: ${authSafe(data.inviteCode)}</small>`;resetInviteForm()}catch(error){document.querySelector('#inviteResult').textContent=`🔴 ${error.message}`}
 });
 document.querySelector('#profileForm').addEventListener('submit',async event=>{
   event.preventDefault();
-  if(window.demoMode){const list=document.querySelector('#profileList'),emoji=document.querySelector('#profileEmoji').value,name=document.querySelector('#profileName').value,base=document.querySelector('#profileBase').selectedOptions[0].textContent;list.insertAdjacentHTML('beforeend',`<div class="profile-chip"><span>${emoji}</span><b>${name}</b><small>personalizado • ${base}</small></div>`);document.querySelector('#inviteProfile').insertAdjacentHTML('beforeend',`<option>${emoji} ${name}</option>`);event.target.reset();document.querySelector('#profileEmoji').value='👤';notify('🟢 Perfil simulado criado');return}
+  if(window.demoMode){const list=document.querySelector('#profileList'),emoji=document.querySelector('#profileEmoji').value,name=document.querySelector('#profileName').value,base=document.querySelector('#profileBase').selectedOptions[0].textContent;list.insertAdjacentHTML('beforeend',`<div class="profile-chip"><span>${authSafe(emoji)}</span><b>${authSafe(name)}</b><small>personalizado • ${authSafe(base)}</small></div>`);document.querySelector('#inviteProfile').insertAdjacentHTML('beforeend',`<option>${authSafe(emoji)} ${authSafe(name)}</option>`);event.target.reset();document.querySelector('#profileEmoji').value='👤';notify('🟢 Perfil simulado criado');return}
   try{await request('/family/profiles',{method:'POST',headers:authHeaders(),body:JSON.stringify({name:document.querySelector('#profileName').value,baseRole:document.querySelector('#profileBase').value,emoji:document.querySelector('#profileEmoji').value})});event.target.reset();document.querySelector('#profileEmoji').value='👤';await loadFamilyAdmin();notify('🟢 Perfil personalizado criado')}catch(error){notify(`🔴 ${error.message}`)}
 });
 document.querySelectorAll('[data-module]').forEach(button=>button.addEventListener('click',()=>{
@@ -101,3 +105,4 @@ document.querySelectorAll('#emojiGallery button').forEach(button=>button.addEven
 const existingToken=sessionStorage.getItem('gfp_token');
 if(existingToken) loadRealProfile(existingToken).catch(()=>sessionStorage.removeItem('gfp_token'));
 document.querySelector('#firstAccessLink').addEventListener('click',()=>document.querySelector('[data-auth-tab="register"]').click());
+if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
