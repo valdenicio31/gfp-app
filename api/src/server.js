@@ -393,6 +393,106 @@ app.delete('/transactions/:id', requireAuth, allowRoles('admin','adult','depende
   res.json({ deleted: 1 });
 });
 
+const importItemSchema = z.object({
+  occurredOn: z.iso.date(),
+  description: z.string().trim().min(1).max(140),
+  amountCents: z.number().int().positive().max(999999999999),
+  type: z.enum(['income','expense']),
+  category: z.string().trim().max(40).nullish(),
+  supplier: z.string().trim().max(120).nullish(),
+  identificador: z.string().trim().max(80).nullish()
+});
+const importSchema = z.object({
+  accountId: z.uuid(),
+  source: z.string().trim().max(120).optional(),
+  items: z.array(importItemSchema).min(1).max(500)
+});
+const importCheckSchema = z.object({
+  accountId: z.uuid(),
+  items: z.array(z.object({
+    occurredOn: z.iso.date(),
+    amountCents: z.number().int().positive(),
+    type: z.enum(['income','expense']),
+    // a descrição entra na marca de importação, então precisa vir também na conferência
+    description: z.string().trim().max(140).optional(),
+    identificador: z.string().trim().max(80).nullish()
+  })).min(1).max(500)
+});
+
+// A marca de importação: o identificador do próprio banco quando existe,
+// senão a combinação de conta, data, tipo, valor e descrição enxuta.
+function marcaDeImportacao(familyId, accountId, item) {
+  const enxuta = String(item.description || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 40);
+  const base = item.identificador
+    ? `${familyId}|${accountId}|fitid|${item.identificador}`
+    : `${familyId}|${accountId}|${item.occurredOn}|${item.type}|${item.amountCents}|${enxuta}`;
+  return crypto.createHash('sha256').update(base).digest('hex');
+}
+
+// Antes de importar, diz quais linhas já existem — por marca de importação
+// ou por já haver lançamento igual (mesma data, tipo e valor) naquela conta.
+app.post('/transactions/import-check', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
+  const parsed = importCheckSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da conferência inválidos' });
+  if (!await contaGravavel(req, parsed.data.accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
+
+  const marcas = parsed.data.items.map(item => marcaDeImportacao(req.auth.familyId, parsed.data.accountId, item));
+  const jaImportados = await query(
+    `select import_hash from transactions where family_id=$1 and import_hash=any($2::text[])`,
+    [req.auth.familyId, marcas]);
+  const conhecidos = new Set(jaImportados.rows.map(linha => linha.import_hash));
+
+  const iguais = await query(
+    `select to_char(occurred_on,'YYYY-MM-DD') dia,type,amount_cents from transactions
+     where family_id=$1 and account_id=$2 and occurred_on = any($3::date[])`,
+    [req.auth.familyId, parsed.data.accountId, [...new Set(parsed.data.items.map(item => item.occurredOn))]]);
+  const existentes = new Set(iguais.rows.map(linha => `${linha.dia}|${linha.type}|${linha.amount_cents}`));
+
+  res.json(parsed.data.items.map((item, indice) => {
+    const jaImportado = conhecidos.has(marcas[indice]);
+    const pareceIgual = existentes.has(`${item.occurredOn}|${item.type}|${item.amountCents}`);
+    return {
+      index: indice,
+      duplicado: jaImportado || pareceIgual,
+      motivo: jaImportado ? 'este lançamento já foi importado antes'
+        : pareceIgual ? 'já existe um lançamento igual nesta data e conta' : null
+    };
+  }));
+});
+
+// Importa o lote. A marca de importação é única por família, então mesmo
+// que a mesma linha venha duas vezes só entra uma.
+app.post('/transactions/import', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
+  const parsed = importSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da importação inválidos' });
+  const { accountId, source, items } = parsed.data;
+  if (!await contaGravavel(req, accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
+
+  const entraram = await transaction(async client => {
+    const gravados = [];
+    for (const item of items) {
+      const resultado = await client.query(
+        `insert into transactions (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on,category,supplier,import_hash,import_source)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         on conflict (family_id,import_hash) where import_hash is not null do nothing
+         returning id,type,amount_cents`,
+        [crypto.randomUUID(), req.auth.familyId, accountId, req.auth.sub, item.type, item.description,
+         item.amountCents, item.occurredOn, item.category || null, item.supplier || null,
+         marcaDeImportacao(req.auth.familyId, accountId, item), (source || '').slice(0, 120) || null]);
+      if (resultado.rows[0]) gravados.push(resultado.rows[0]);
+    }
+    const ajuste = gravados.reduce((soma, linha) =>
+      soma + (linha.type === 'income' ? Number(linha.amount_cents) : -Number(linha.amount_cents)), 0);
+    if (ajuste) {
+      await client.query(`update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3`,
+        [ajuste, accountId, req.auth.familyId]);
+    }
+    return gravados;
+  });
+
+  res.status(201).json({ inserted: entraram.length, duplicates: items.length - entraram.length });
+});
+
 // Exclusão em lote: por seleção (ids), por período (from/to) ou pelos dois.
 // Apagar em lote é do administrador e do adulto.
 app.post('/transactions/bulk-delete', requireAuth, allowRoles('admin','adult'), async (req, res) => {

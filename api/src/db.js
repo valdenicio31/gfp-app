@@ -34,7 +34,8 @@ export async function migrate() {
     '../sql/005_audit_lgpd.sql',
     '../sql/006_payments.sql',
     '../sql/007_password_reset_tokens.sql',
-    '../sql/008_transaction_category.sql'
+    '../sql/008_transaction_category.sql',
+    '../sql/009_transaction_import.sql'
   ];
   for (const path of migrations) {
     const fullPath = fileURLToPath(new URL(path, import.meta.url));
