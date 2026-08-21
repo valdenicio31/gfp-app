@@ -5,7 +5,8 @@
 
 const imp = {
   nomeArquivo: '', formato: '', avisos: [], linhas: [], contaId: '',
-  marcadas: new Set(), erro: '', ocupado: false, mostrar: 300
+  marcadas: new Set(), erro: '', ocupado: false, mostrar: 300,
+  parceiros: []        // cadastro de fornecedores e clientes, que manda na classificação
 };
 
 const TIPOS_ACEITOS = '.ofx,.csv,.txt,.tsv,.qfx,text/csv,text/plain';
@@ -166,6 +167,27 @@ function abrirCriacaoDeConta() {
 
 /* ---------- passo 2: prévia ---------- */
 
+async function carregarParceiros() {
+  if (lanc.demo) { imp.parceiros = typeof cad !== 'undefined' ? (cad.parceiros || []) : []; return; }
+  try {
+    imp.parceiros = await request('/partners', { headers: authHeaders(), cache: 'no-store' });
+  } catch {
+    imp.parceiros = [];   // sem o cadastro a classificação segue pelo histórico e pelos padrões
+  }
+}
+
+// Passa cada linha pelo reconhecimento: cadastro, histórico, padrões — nessa ordem.
+function classificarLinhas() {
+  for (const linha of imp.linhas) {
+    if (linha.ensinado) continue;               // o que o usuário já ensinou não é mexido
+    const r = GFPFornecedores.reconhecer(linha.descricaoOriginal || linha.description, lanc.itens, imp.parceiros);
+    linha.supplier = r.fornecedor || '';
+    linha.category = r.categoria || '';
+    linha.origem = r.origem;
+    linha.casouPor = r.casouPor || '';
+  }
+}
+
 async function prepararPrevia(arquivo) {
   imp.nomeArquivo = arquivo.name;
   const palpite = contaPeloNomeDoArquivo(arquivo.name);
@@ -181,23 +203,20 @@ async function prepararPrevia(arquivo) {
   imp.avisos = lido.avisos || [];
   imp.todosPositivos = Boolean(lido.todosPositivos);
 
-  imp.linhas = lido.linhas.map((linha, indice) => {
-    const reconhecido = GFPFornecedores.reconhecer(linha.descricaoOriginal || linha.description, lanc.itens);
-    return {
-      indice,
-      occurredOn: linha.occurredOn,
-      description: linha.description,
-      descricaoOriginal: linha.descricaoOriginal || linha.description,
-      amountCents: linha.amountCents,
-      type: linha.type,
-      identificador: linha.identificador || '',
-      supplier: reconhecido.fornecedor || '',
-      category: reconhecido.categoria || '',
-      origem: reconhecido.origem,
-      duplicado: false,
-      motivo: null
-    };
-  });
+  await carregarParceiros();
+  imp.linhas = lido.linhas.map((linha, indice) => ({
+    indice,
+    occurredOn: linha.occurredOn,
+    description: linha.description,
+    descricaoOriginal: linha.descricaoOriginal || linha.description,
+    amountCents: linha.amountCents,
+    type: linha.type,
+    identificador: linha.identificador || '',
+    supplier: '', category: '', origem: 'nenhum', casouPor: '',
+    duplicado: false,
+    motivo: null
+  }));
+  classificarLinhas();
   imp.marcadas = new Set(imp.linhas.map(linha => linha.indice));
 
   if (!imp.linhas.length) {
@@ -240,6 +259,15 @@ async function conferirRepetidos() {
   } catch (falha) {
     imp.avisos = [...imp.avisos, `Não consegui conferir os repetidos agora (${mensagemAmigavel(falha.message)}). Confira a lista antes de importar.`];
   }
+}
+
+// Diz de onde veio a classificação — dá para confiar ou corrigir sabendo o porquê.
+function origemDaLinha(linha) {
+  if (linha.ensinado) return '<small class="imp-fonte ensinado">você ensinou agora</small>';
+  if (linha.origem === 'cadastro') return `<small class="imp-fonte cadastro">do cadastro${linha.casouPor ? ` · ${seguro(linha.casouPor)}` : ''}</small>`;
+  if (linha.origem === 'historico') return '<small class="imp-fonte">pelo seu histórico</small>';
+  if (linha.origem === 'lista') return '<small class="imp-fonte">reconhecido pelo nome</small>';
+  return '';
 }
 
 function desenharPrevia(conferindo = false) {
@@ -291,6 +319,7 @@ function desenharPrevia(conferindo = false) {
           <option value="__limpar__">(sem categoria)</option>
         </select>
       </label>
+      ${semCategoria ? `<button class="imp-classificar" id="impClassificar">${svg('funil', 'ico-s')}Classificar os ${semCategoria} que faltam</button>` : ''}
       ${imp.todosPositivos ? '<label class="imp-cartao"><input type="checkbox" id="impTudoSaida" checked>É fatura de cartão: tudo como saída</label>' : ''}
     </div>
 
@@ -306,7 +335,7 @@ function desenharPrevia(conferindo = false) {
           <span class="lanc-data">${dataBr(linha.occurredOn)}</span>
           <span class="imp-desc" title="${seguro(linha.descricaoOriginal)}">${seguro(linha.description)}
             ${linha.duplicado ? `<small class="imp-repetido">já existe — ${seguro(linha.motivo || '')}</small>` : ''}</span>
-          <span class="imp-forn">${seguro(linha.supplier || '—')}${linha.origem === 'historico' ? '<small>pelo seu histórico</small>' : ''}</span>
+          <span class="imp-forn">${seguro(linha.supplier || '—')}${origemDaLinha(linha)}</span>
           <select data-categoria="${linha.indice}">${opcoesDeCategoria(linha.category)}</select>
           <span class="lanc-valor ${linha.type === 'income' ? 'entrada' : 'saida'}">${linha.type === 'income' ? '+' : '−'} ${(linha.amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>`).join('')}
@@ -363,6 +392,7 @@ function desenharPrevia(conferindo = false) {
     for (const linha of imp.linhas) linha.type = evento.target.checked ? 'expense' : 'income';
     desenharPrevia();
   });
+  fundo.querySelector('#impClassificar')?.addEventListener('click', () => classificarPendentes(0));
   fundo.querySelector('#impConverter').addEventListener('click', converterEmLancamentos);
 
   // fatura de cartão começa com tudo como saída
@@ -370,6 +400,209 @@ function desenharPrevia(conferindo = false) {
     for (const linha of imp.linhas) linha.type = 'expense';
     desenharPrevia();
   }
+}
+
+/* ---------- ensinar de uma vez: um grupo por vez ---------- */
+
+// A caixa é a mesma para a importação e para os lançamentos já gravados.
+function caixaDeEnsino({ exemplo, quantos, sugerido, posicao, total, pendentes, ondeMais }) {
+  return abrirCaixa(`
+    <div>
+      <h3>De quem é este lançamento?</h3>
+      <p class="sub">Grupo ${posicao} de ${total} · ${quantos === 1 ? '1 lançamento' : `${quantos} lançamentos iguais`} · ${pendentes} sem categoria no total</p>
+    </div>
+
+    <div class="imp-exemplo">
+      <span class="rotulo-mini">Como veio do banco</span>
+      <b>${seguro(exemplo.descricaoOriginal || exemplo.description)}</b>
+      <span>${dataBr(exemplo.occurredOn)} · ${exemplo.type === 'income' ? 'entrada' : 'saída'} de ${reais(exemplo.amountCents)}</span>
+      ${quantos > 1 ? `<small>e mais ${quantos - 1} ${quantos - 1 === 1 ? 'lançamento parecido' : 'lançamentos parecidos'} ${seguro(ondeMais)}</small>` : ''}
+    </div>
+
+    <div class="campos">
+      <label class="largo">Nome do fornecedor ou cliente<input id="impNome" maxlength="120" value="${seguro(sugerido.fornecedor || '')}"></label>
+      <label>É<select id="impTipoParceiro">
+        <option value="supplier" ${exemplo.type === 'expense' ? 'selected' : ''}>Fornecedor (eu pago)</option>
+        <option value="client" ${exemplo.type === 'income' ? 'selected' : ''}>Cliente (me paga)</option>
+        <option value="both">Os dois</option>
+      </select></label>
+      <label>Categoria<select id="impCategoria">${opcoesDeCategoria(sugerido.categoria)}</select></label>
+      <label class="largo">Reconhecer daqui para frente por<input id="impTermos" maxlength="600" value="${seguro(GFPFornecedores.termosSugeridos(exemplo.descricaoOriginal || exemplo.description))}"></label>
+      <label class="largo cad-checkbox"><input type="checkbox" id="impSalvarCadastro" checked>Guardar no cadastro de fornecedores e clientes</label>
+      <label class="largo cad-checkbox"><input type="checkbox" id="impAplicarAntigos" checked>Aplicar também nos outros lançamentos que estão sem categoria</label>
+    </div>
+
+    <p class="lanc-erro" id="impErroClassificar"></p>
+    <div class="pe">
+      <button data-fechar="1">Fechar</button>
+      ${total > 1 ? '<button id="impPular">Pular este</button>' : ''}
+      <button class="principal" id="impAplicarGrupo">Aplicar${total > 1 ? ' e ir para o próximo' : ''}</button>
+    </div>`, 'media');
+}
+
+// Guarda o parceiro no cadastro (ou atualiza o que já existe com o mesmo nome).
+async function guardarParceiro(dados) {
+  try {
+    const criado = await request('/partners', { method: 'POST', headers: authHeaders(), body: JSON.stringify(dados) });
+    imp.parceiros = [...imp.parceiros, { ...criado, match_terms: dados.matchTerms }];
+  } catch (falha) {
+    const existente = imp.parceiros.find(p => p.name.toLowerCase() === dados.name.toLowerCase());
+    if (!existente) throw falha;
+    await request(`/partners/${existente.id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(dados) });
+    existente.category = dados.category;
+    existente.match_terms = dados.matchTerms;
+  }
+}
+
+// Classifica de uma vez os lançamentos JÁ GRAVADOS que estão sem categoria.
+async function classificarLancamentosPendentes(indiceDoGrupo = 0) {
+  if (lanc.demo) return notify('🟡 No modo demonstração a classificação não é gravada');
+  await carregarParceiros();
+  const pendentes = lanc.itens.filter(item => !item.category);
+  if (!pendentes.length) return notify('🟢 Nenhum lançamento sem categoria');
+
+  const grupos = GFPFornecedores.agruparParecidos(pendentes);
+  const grupo = grupos[Math.min(indiceDoGrupo, grupos.length - 1)];
+  const exemplo = grupo.exemplo;
+  const sugerido = GFPFornecedores.reconhecer(exemplo.description, lanc.itens.filter(i => i.category), imp.parceiros);
+
+  const fundo = caixaDeEnsino({
+    exemplo: { ...exemplo, occurredOn: exemplo.occurred_on, amountCents: exemplo.amount_cents },
+    quantos: grupo.linhas.length, sugerido,
+    posicao: Math.min(indiceDoGrupo + 1, grupos.length), total: grupos.length,
+    pendentes: pendentes.length, ondeMais: 'nos seus lançamentos'
+  });
+
+  fundo.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
+  fundo.querySelector('#impPular')?.addEventListener('click', () => {
+    fecharCaixa();
+    classificarLancamentosPendentes(indiceDoGrupo + 1 < grupos.length ? indiceDoGrupo + 1 : 0);
+  });
+  fundo.querySelector('#impAplicarGrupo').addEventListener('click', async () => {
+    const erro = fundo.querySelector('#impErroClassificar');
+    const nome = fundo.querySelector('#impNome').value.trim();
+    const categoria = fundo.querySelector('#impCategoria').value;
+    const listaTermos = fundo.querySelector('#impTermos').value.split(/[;|\n]/).map(t => t.trim()).filter(t => t.length >= 3);
+    if (nome.length < 2) return erro.textContent = 'Informe o nome de quem recebeu ou pagou.';
+    if (!categoria) return erro.textContent = 'Escolha a categoria.';
+    if (!listaTermos.length) return erro.textContent = 'Deixe pelo menos um termo de reconhecimento com 3 letras ou mais.';
+
+    const botao = fundo.querySelector('#impAplicarGrupo');
+    botao.disabled = true;
+    try {
+      if (fundo.querySelector('#impSalvarCadastro').checked) {
+        await guardarParceiro({ name: nome, kind: fundo.querySelector('#impTipoParceiro').value, category: categoria, matchTerms: listaTermos.join('; ') });
+      }
+      const resposta = await request('/transactions/reclassify', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ terms: listaTermos, supplier: nome, category: categoria, onlyUncategorized: true })
+      });
+      fecharCaixa();
+      notify(`🟢 ${resposta.updated} ${resposta.updated === 1 ? 'lançamento classificado' : 'lançamentos classificados'}`);
+      await carregarLancamentos();
+      if (lanc.itens.some(item => !item.category)) classificarLancamentosPendentes(0);
+    } catch (falha) {
+      botao.disabled = false;
+      erro.textContent = falha.message;
+    }
+  });
+}
+window.classificarLancamentosPendentes = classificarLancamentosPendentes;
+
+
+// Junta o que ficou sem categoria em grupos parecidos, para o usuário ensinar
+// uma vez e valer para todos — inclusive para os lançamentos antigos.
+function classificarPendentes(indiceDoGrupo) {
+  const pendentes = imp.linhas.filter(linha => !linha.category);
+  if (!pendentes.length) {
+    notify('🟢 Não sobrou nenhum lançamento sem categoria');
+    return desenharPrevia();
+  }
+  const grupos = GFPFornecedores.agruparParecidos(pendentes);
+  const grupo = grupos[Math.min(indiceDoGrupo, grupos.length - 1)];
+  const exemplo = grupo.exemplo;
+  const sugerido = GFPFornecedores.reconhecer(exemplo.descricaoOriginal || exemplo.description, lanc.itens, imp.parceiros);
+  const quantos = grupo.linhas.length;
+
+  const fundo = caixaDeEnsino({
+    exemplo, quantos, sugerido,
+    posicao: Math.min(indiceDoGrupo + 1, grupos.length), total: grupos.length,
+    pendentes: pendentes.length, ondeMais: 'neste arquivo'
+  });
+
+  fundo.querySelector('[data-fechar]').addEventListener('click', () => { fecharCaixa(); desenharPrevia(); });
+  fundo.querySelector('#impPular')?.addEventListener('click', () => {
+    fecharCaixa();
+    classificarPendentes(indiceDoGrupo + 1 < grupos.length ? indiceDoGrupo + 1 : 0);
+  });
+
+  fundo.querySelector('#impAplicarGrupo').addEventListener('click', async () => {
+    const erro = fundo.querySelector('#impErroClassificar');
+    const nome = fundo.querySelector('#impNome').value.trim();
+    const categoria = fundo.querySelector('#impCategoria').value;
+    const termos = fundo.querySelector('#impTermos').value.trim();
+    if (nome.length < 2) return erro.textContent = 'Informe o nome de quem recebeu ou pagou.';
+    if (!categoria) return erro.textContent = 'Escolha a categoria.';
+
+    const botao = fundo.querySelector('#impAplicarGrupo');
+    botao.disabled = true;
+    const listaTermos = termos.split(/[;|\n]/).map(t => t.trim()).filter(t => t.length >= 3);
+
+    try {
+      // 1) guarda no cadastro, para as próximas importações já virem prontas
+      if (fundo.querySelector('#impSalvarCadastro').checked && !lanc.demo) {
+        const dados = { name: nome, kind: fundo.querySelector('#impTipoParceiro').value, category: categoria, matchTerms: listaTermos.join('; ') || null };
+        try {
+          const criado = await request('/partners', { method: 'POST', headers: authHeaders(), body: JSON.stringify(dados) });
+          imp.parceiros = [...imp.parceiros, { ...criado, match_terms: dados.matchTerms }];
+        } catch (falha) {
+          // nome repetido: atualiza o cadastro que já existe
+          const existente = imp.parceiros.find(p => p.name.toLowerCase() === nome.toLowerCase());
+          if (existente) {
+            await request(`/partners/${existente.id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(dados) });
+            existente.category = categoria;
+            existente.match_terms = dados.matchTerms;
+          } else throw falha;
+        }
+      }
+
+      // 2) aplica no que está na prévia — no grupo e em qualquer outra linha que casar
+      const casa = linha => {
+        const texto = (linha.descricaoOriginal || linha.description).toLowerCase();
+        return listaTermos.some(termo => texto.includes(termo.toLowerCase()));
+      };
+      let aplicadas = 0;
+      for (const linha of imp.linhas) {
+        const noGrupo = grupo.linhas.includes(linha);
+        if (!noGrupo && (linha.category || !casa(linha))) continue;
+        linha.supplier = nome;
+        linha.category = categoria;
+        linha.ensinado = true;
+        linha.origem = 'ensinado';
+        aplicadas++;
+      }
+
+      // 3) alcança os lançamentos antigos que ainda estão sem categoria
+      let antigos = 0;
+      if (fundo.querySelector('#impAplicarAntigos').checked && !lanc.demo && listaTermos.length) {
+        const resposta = await request('/transactions/reclassify', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({ terms: listaTermos, supplier: nome, category: categoria, onlyUncategorized: true })
+        });
+        antigos = resposta.updated || 0;
+      }
+
+      fecharCaixa();
+      notify(`🟢 ${aplicadas} ${aplicadas === 1 ? 'lançamento classificado' : 'lançamentos classificados'}${antigos ? ` · ${antigos} ${antigos === 1 ? 'antigo também' : 'antigos também'}` : ''}`);
+
+      const faltam = imp.linhas.filter(linha => !linha.category).length;
+      if (faltam) return classificarPendentes(0);
+      desenharPrevia();
+    } catch (falha) {
+      botao.disabled = false;
+      erro.textContent = falha.message;
+    }
+  });
 }
 
 /* ---------- passo 3: converter ---------- */

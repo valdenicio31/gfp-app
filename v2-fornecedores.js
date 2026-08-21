@@ -8,7 +8,7 @@ const chave = t => semAcento_(t).toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').repla
 
 // Ruído do banco: sai sempre.
 const RUIDO = new Set(['COMPRA', 'NO', 'NA', 'DEBITO', 'CREDITO', 'CARTAO', 'PAGAMENTO', 'PAGTO', 'PAG',
-  'RECEBIDO', 'RECEBIDA', 'ENVIADO', 'ENVIADA', 'PELO', 'PELA', 'VIA', 'PIX', 'TED', 'DOC', 'TRANSFERENCIA',
+  'RECEBIDO', 'RECEBIDA', 'ENVIADO', 'ENVIADA', 'PELO', 'PELA', 'VIA', 'PIX', 'TED', 'DOC', 'BOLETO', 'TITULO', 'TRANSFERENCIA',
   'TRANSF', 'TRANSFER', 'PARA', 'POR', 'COM', 'LTDA', 'ME', 'MEI', 'SA', 'EIRELI', 'EPP', 'BRASIL', 'BR',
   'COMERCIO', 'SERVICOS', 'AUT', 'NSU', 'REF', 'PARC', 'PARCELA', 'MENSALIDADE', 'CIA', 'DISTRIBUIDORA']);
 // Conectores: só saem quando ficam sobrando na ponta do nome.
@@ -101,6 +101,45 @@ function marcas(descricao) {
   return null;
 }
 
+/* ---------- cadastro de fornecedores e clientes ---------- */
+
+const soDigitos = texto => String(texto ?? '').replace(/\D/g, '');
+
+// Documentos (CNPJ/CPF) que aparecem na descrição do extrato.
+function documentosNaDescricao(descricao) {
+  const achados = String(descricao ?? '').match(/\d[\d.\-\/]{9,20}\d/g) || [];
+  return achados.map(soDigitos).filter(d => d.length === 11 || d.length === 14);
+}
+
+// O cadastro do usuário manda: casa pelos termos de reconhecimento, pelo
+// CNPJ/CPF na descrição ou pelo próprio nome do parceiro.
+function doCadastro(descricao, parceiros = []) {
+  if (!parceiros.length) return null;
+  const texto = chave(descricao);
+  const documentos = documentosNaDescricao(descricao);
+  let melhor = null, melhorPeso = 0;
+
+  for (const parceiro of parceiros) {
+    if (!parceiro || !parceiro.name) continue;
+
+    if (parceiro.document && documentos.includes(soDigitos(parceiro.document))) {
+      return { fornecedor: parceiro.name, categoria: parceiro.category || '', origem: 'cadastro', casouPor: 'CNPJ/CPF no extrato', parceiro };
+    }
+
+    const termos = String(parceiro.match_terms || parceiro.matchTerms || '')
+      .split(/[;|\n]/).map(t => chave(t)).filter(t => t.length >= 3);
+    const alvos = [...termos, chave(parceiro.name)].filter(Boolean);
+    for (const termo of alvos) {
+      // termo maior é evidência mais forte: "assai atacadista" vence "assai"
+      if (texto.includes(termo) && termo.length > melhorPeso) {
+        melhorPeso = termo.length;
+        melhor = { fornecedor: parceiro.name, categoria: parceiro.category || '', origem: 'cadastro', casouPor: `“${termo.toLowerCase()}”`, parceiro };
+      }
+    }
+  }
+  return melhor;
+}
+
 // Compara com o que a família já categorizou: se bate bem, aprende dali.
 function doHistorico(descricao, historico = []) {
   const alvo = new Set(chave(descricao).split(' ').filter(p => p.length >= 4 && !RUIDO.has(p) && !CONECTORES.has(p)));
@@ -130,13 +169,40 @@ function doHistorico(descricao, historico = []) {
   };
 }
 
-// O histórico da família manda; a lista de padrões entra quando o histórico não sabe.
-function reconhecer(descricao, historico = []) {
-  return doHistorico(descricao, historico)
+// Ordem de prioridade: o cadastro que o usuário fez, depois o histórico já
+// categorizado da família, depois a lista de padrões brasileiros. Se nada bate,
+// devolve o nome provável sem categoria — não inventa.
+function reconhecer(descricao, historico = [], parceiros = []) {
+  return doCadastro(descricao, parceiros)
+    || doHistorico(descricao, historico)
     || marcas(descricao)
     || { fornecedor: nomeProvavel(descricao), categoria: '', origem: 'nenhum' };
 }
 
-const GFPFornecedores = { reconhecer, marcas, doHistorico, nomeProvavel, titulo, REGRAS };
+// Sugere os termos de reconhecimento para um fornecedor novo, a partir da
+// descrição que veio do banco: as palavras que realmente identificam.
+function termosSugeridos(descricao) {
+  const palavras = chave(descricao).split(' ')
+    .filter(p => p.length >= 4 && !RUIDO.has(p) && !CONECTORES.has(p) && !/^\d+$/.test(p));
+  if (!palavras.length) return '';
+  const principal = palavras.slice(0, 3).join(' ').toLowerCase();
+  const curto = palavras[0].toLowerCase();
+  return principal === curto ? principal : `${principal}; ${curto}`;
+}
+
+// Agrupa lançamentos parecidos para o usuário ensinar uma vez e valer para todos.
+function agruparParecidos(linhas = []) {
+  const grupos = new Map();
+  for (const linha of linhas) {
+    const palavras = chave(linha.descricaoOriginal || linha.description).split(' ')
+      .filter(p => p.length >= 4 && !RUIDO.has(p) && !CONECTORES.has(p) && !/^\d+$/.test(p));
+    const assinatura = palavras.slice(0, 2).join(' ') || chave(linha.description).slice(0, 12) || 'sem-descricao';
+    if (!grupos.has(assinatura)) grupos.set(assinatura, { assinatura, linhas: [], exemplo: linha });
+    grupos.get(assinatura).linhas.push(linha);
+  }
+  return [...grupos.values()].sort((a, b) => b.linhas.length - a.linhas.length);
+}
+
+const GFPFornecedores = { reconhecer, marcas, doCadastro, doHistorico, nomeProvavel, titulo, termosSugeridos, agruparParecidos, documentosNaDescricao, REGRAS };
 if (typeof window !== 'undefined') window.GFPFornecedores = GFPFornecedores;
 if (typeof module !== 'undefined' && module.exports) module.exports = GFPFornecedores;

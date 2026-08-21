@@ -540,6 +540,254 @@ app.post('/transactions/bulk-delete', requireAuth, allowRoles('admin','adult'), 
   res.json({ deleted: alvo.rows.length, accounts: porConta.size });
 });
 
+const reclassifySchema = z.object({
+  terms: z.array(z.string().trim().min(3).max(80)).min(1).max(20),
+  supplier: z.string().trim().max(120).nullish(),
+  category: z.string().trim().max(40).nullish(),
+  onlyUncategorized: z.boolean().default(true),
+  accountId: z.uuid().nullish()
+});
+
+// Ensina de uma vez: aplica fornecedor e categoria a todos os lançamentos cuja
+// descrição contém um dos termos. Por padrão só mexe no que está sem categoria.
+app.post('/transactions/reclassify', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = reclassifySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da classificação inválidos' });
+  const { terms, supplier, category, onlyUncategorized, accountId } = parsed.data;
+  if (!supplier && !category) return res.status(400).json({ error: 'Informe o fornecedor ou a categoria' });
+  if (accountId && !await contaGravavel(req, accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
+
+  const params = [req.auth.familyId, req.auth.sub, req.auth.role === 'admin', terms.map(t => `%${t}%`)];
+  const condicoes = [
+    't.family_id=$1',
+    '(a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))',
+    't.description ilike any($4::text[])'
+  ];
+  if (onlyUncategorized) condicoes.push(`(t.category is null or t.category='')`);
+  if (accountId) { params.push(accountId); condicoes.push(`t.account_id=$${params.length}::uuid`); }
+
+  const alvo = await query(`select t.id from transactions t join accounts a on a.id=t.account_id
+    where ${condicoes.join(' and ')}`, params);
+  if (!alvo.rows.length) return res.json({ updated: 0 });
+
+  const ids = alvo.rows.map(linha => linha.id);
+  const campos = [], valores = [];
+  if (category !== undefined && category !== null) { valores.push(category || null); campos.push(`category=$${valores.length}`); }
+  if (supplier !== undefined && supplier !== null) { valores.push(supplier || null); campos.push(`supplier=$${valores.length}`); }
+  valores.push(req.auth.familyId, ids);
+  await query(`update transactions set ${campos.join(',')} where family_id=$${valores.length - 1} and id=any($${valores.length}::uuid[])`, valores);
+  res.json({ updated: ids.length });
+});
+
+/* ---------- metas, orçamento e reserva ---------- */
+
+const goalSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(600).nullish(),
+  targetCents: z.number().int().positive().max(999999999999),
+  deadline: z.iso.date().nullish(),
+  emoji: z.string().trim().max(12).default('🎯')
+});
+const contributionSchema = z.object({
+  amountCents: z.number().int().positive().max(999999999999),
+  type: z.enum(['deposit','withdraw']).default('deposit'),
+  note: z.string().trim().max(200).nullish()
+});
+
+app.get('/goals', requireAuth, async (req, res) => {
+  const metas = await query(`select g.id,g.title,g.description,g.target_cents,g.current_cents,
+      to_char(g.deadline,'YYYY-MM-DD') deadline,g.status,g.emoji,u.name criado_por,
+      (select count(*)::int from goal_contributions c where c.goal_id=g.id) movimentos
+    from goals g left join users u on u.id=g.created_by
+    where g.family_id=$1 order by (g.status='completed'), g.deadline nulls last, g.created_at`, [req.auth.familyId]);
+  res.json(metas.rows);
+});
+
+app.post('/goals', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = goalSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da meta inválidos' });
+  const { title, description, targetCents, deadline, emoji } = parsed.data;
+  const criada = await query(`insert into goals (family_id,created_by,title,description,target_cents,deadline,emoji)
+    values ($1,$2,$3,$4,$5,$6,$7) returning id,title,target_cents,current_cents,status,emoji`,
+    [req.auth.familyId, req.auth.sub, title, description || null, targetCents, deadline || null, emoji]);
+  res.status(201).json(criada.rows[0]);
+});
+
+app.patch('/goals/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Meta inválida' });
+  const parsed = goalSchema.partial().extend({ status: z.enum(['active','completed','cancelled']).optional() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da meta inválidos' });
+  const campos = [], valores = [];
+  const setar = (coluna, valor) => { valores.push(valor); campos.push(`${coluna}=$${valores.length}`); };
+  if (parsed.data.title !== undefined) setar('title', parsed.data.title);
+  if (parsed.data.description !== undefined) setar('description', parsed.data.description || null);
+  if (parsed.data.targetCents !== undefined) setar('target_cents', parsed.data.targetCents);
+  if (parsed.data.deadline !== undefined) setar('deadline', parsed.data.deadline || null);
+  if (parsed.data.emoji !== undefined) setar('emoji', parsed.data.emoji);
+  if (parsed.data.status !== undefined) setar('status', parsed.data.status);
+  if (!campos.length) return res.json({ id: req.params.id });
+  campos.push('updated_at=now()');
+  valores.push(req.params.id, req.auth.familyId);
+  const feito = await query(`update goals set ${campos.join(',')} where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Meta não encontrada' });
+  res.json({ id: req.params.id });
+});
+
+app.delete('/goals/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Meta inválida' });
+  const feito = await query('delete from goals where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Meta não encontrada' });
+  res.json({ deleted: 1 });
+});
+
+// Depósito ou retirada na meta: guarda o movimento e recalcula o quanto já juntou.
+app.post('/goals/:id/contributions', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Meta inválida' });
+  const parsed = contributionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do movimento inválidos' });
+  const meta = await query('select id,target_cents,current_cents from goals where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!meta.rows[0]) return res.status(404).json({ error: 'Meta não encontrada' });
+
+  const { amountCents, type, note } = parsed.data;
+  const atual = Number(meta.rows[0].current_cents);
+  if (type === 'withdraw' && amountCents > atual) {
+    return res.status(400).json({ error: `A meta tem ${(atual / 100).toFixed(2)} — não dá para retirar mais que isso` });
+  }
+  const novo = type === 'deposit' ? atual + amountCents : atual - amountCents;
+  const alvo = Number(meta.rows[0].target_cents);
+
+  await transaction(async client => {
+    await client.query(`insert into goal_contributions (goal_id,family_id,user_id,amount_cents,type,note)
+      values ($1,$2,$3,$4,$5,$6)`, [req.params.id, req.auth.familyId, req.auth.sub, amountCents, type, note || null]);
+    await client.query(`update goals set current_cents=$1, status=$2, updated_at=now() where id=$3 and family_id=$4`,
+      [novo, novo >= alvo ? 'completed' : 'active', req.params.id, req.auth.familyId]);
+  });
+  res.status(201).json({ currentCents: novo, status: novo >= alvo ? 'completed' : 'active' });
+});
+
+app.get('/goals/:id/contributions', requireAuth, async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Meta inválida' });
+  const lista = await query(`select c.id,c.amount_cents,c.type,c.note,c.created_at,u.name quem
+    from goal_contributions c left join users u on u.id=c.user_id
+    where c.goal_id=$1 and c.family_id=$2 order by c.created_at desc limit 100`, [req.params.id, req.auth.familyId]);
+  res.json(lista.rows);
+});
+
+const budgetSchema = z.object({
+  category: z.string().trim().min(2).max(50),
+  limitCents: z.number().int().positive().max(999999999999),
+  month: z.number().int().min(1).max(12),
+  year: z.number().int().min(2020).max(2100)
+});
+
+// Orçamento do mês com o realizado calculado dos lançamentos da própria categoria.
+app.get('/budgets', requireAuth, async (req, res) => {
+  const hoje = new Date();
+  const mes = Number(req.query.month) || hoje.getUTCMonth() + 1;
+  const ano = Number(req.query.year) || hoje.getUTCFullYear();
+  if (mes < 1 || mes > 12 || ano < 2020 || ano > 2100) return res.status(400).json({ error: 'Período inválido' });
+  const familyScope = req.auth.role === 'admin';
+
+  const lista = await query(`select b.id,b.category,b.limit_cents,b.period_month,b.period_year,
+      coalesce((select sum(t.amount_cents) from transactions t join accounts a on a.id=t.account_id
+        where t.family_id=b.family_id and t.category=b.category and t.type='expense'
+          and extract(month from t.occurred_on)=b.period_month and extract(year from t.occurred_on)=b.period_year
+          and (a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))),0)::bigint realizado_cents
+    from budgets b
+    where b.family_id=$1 and b.period_month=$4 and b.period_year=$5 and b.is_active=true
+    order by b.category`, [req.auth.familyId, req.auth.sub, familyScope, mes, ano]);
+  res.json({ month: mes, year: ano, items: lista.rows });
+});
+
+app.post('/budgets', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = budgetSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do orçamento inválidos' });
+  const { category, limitCents, month, year } = parsed.data;
+  try {
+    const criado = await query(`insert into budgets (family_id,category,limit_cents,period_month,period_year)
+      values ($1,$2,$3,$4,$5)
+      on conflict (family_id,category,period_month,period_year)
+      do update set limit_cents=excluded.limit_cents, is_active=true, updated_at=now()
+      returning id,category,limit_cents,period_month,period_year`, [req.auth.familyId, category, limitCents, month, year]);
+    res.status(201).json(criado.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'Não foi possível salvar o orçamento' });
+  }
+});
+
+app.delete('/budgets/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Orçamento inválido' });
+  const feito = await query('delete from budgets where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Orçamento não encontrado' });
+  res.json({ deleted: 1 });
+});
+
+const reserveSchema = z.object({
+  name: z.string().trim().min(2).max(80).default('Reserva de emergência'),
+  targetCents: z.number().int().positive().max(999999999999),
+  monthlyTargetCents: z.number().int().min(0).max(999999999999).default(0)
+});
+
+app.get('/reserves', requireAuth, async (req, res) => {
+  const lista = await query(`select id,name,target_cents,current_cents,monthly_target_cents,is_active
+    from reserves where family_id=$1 and is_active=true order by created_at`, [req.auth.familyId]);
+  res.json(lista.rows);
+});
+
+app.post('/reserves', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = reserveSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da reserva inválidos' });
+  const { name, targetCents, monthlyTargetCents } = parsed.data;
+  const criada = await query(`insert into reserves (family_id,owner_user_id,name,target_cents,monthly_target_cents)
+    values ($1,$2,$3,$4,$5) returning id,name,target_cents,current_cents,monthly_target_cents`,
+    [req.auth.familyId, req.auth.sub, name, targetCents, monthlyTargetCents]);
+  res.status(201).json(criada.rows[0]);
+});
+
+app.patch('/reserves/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Reserva inválida' });
+  const parsed = reserveSchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da reserva inválidos' });
+  const campos = [], valores = [];
+  if (parsed.data.name !== undefined) { valores.push(parsed.data.name); campos.push(`name=$${valores.length}`); }
+  if (parsed.data.targetCents !== undefined) { valores.push(parsed.data.targetCents); campos.push(`target_cents=$${valores.length}`); }
+  if (parsed.data.monthlyTargetCents !== undefined) { valores.push(parsed.data.monthlyTargetCents); campos.push(`monthly_target_cents=$${valores.length}`); }
+  if (!campos.length) return res.json({ id: req.params.id });
+  campos.push('updated_at=now()');
+  valores.push(req.params.id, req.auth.familyId);
+  const feito = await query(`update reserves set ${campos.join(',')} where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Reserva não encontrada' });
+  res.json({ id: req.params.id });
+});
+
+app.post('/reserves/:id/movements', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Reserva inválida' });
+  const parsed = contributionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do movimento inválidos' });
+  const reserva = await query('select id,current_cents from reserves where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!reserva.rows[0]) return res.status(404).json({ error: 'Reserva não encontrada' });
+  const atual = Number(reserva.rows[0].current_cents);
+  const { amountCents, type, note } = parsed.data;
+  if (type === 'withdraw' && amountCents > atual) {
+    return res.status(400).json({ error: `A reserva tem ${(atual / 100).toFixed(2)} — não dá para retirar mais que isso` });
+  }
+  const novo = type === 'deposit' ? atual + amountCents : atual - amountCents;
+  await transaction(async client => {
+    await client.query(`insert into reserve_movements (reserve_id,family_id,user_id,amount_cents,type,note)
+      values ($1,$2,$3,$4,$5,$6)`, [req.params.id, req.auth.familyId, req.auth.sub, amountCents, type, note || null]);
+    await client.query('update reserves set current_cents=$1, updated_at=now() where id=$2 and family_id=$3',
+      [novo, req.params.id, req.auth.familyId]);
+  });
+  res.status(201).json({ currentCents: novo });
+});
+
+app.delete('/reserves/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Reserva inválida' });
+  const feito = await query('update reserves set is_active=false, updated_at=now() where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Reserva não encontrada' });
+  res.json({ deleted: 1 });
+});
+
 /* ---------- cadastros da família: categorias, bancos, agências, parceiros ---------- */
 
 const CATEGORIAS_PADRAO = [

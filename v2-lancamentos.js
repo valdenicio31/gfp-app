@@ -228,6 +228,7 @@ function desenharTela() {
       </div>` : ''}
 
     ${faixaDeContas()}
+    ${faixaSemCategoria()}
 
     <div class="lanc-tags">${etiquetasDeFiltro()}</div>
 
@@ -304,6 +305,17 @@ function faixaDeContas() {
     <b>${contas.length === 1 ? 'Sua conta' : `Suas ${contas.length} contas`}</b>
     ${contas.map(conta => `<span class="lanc-conta-chip">${seguro(conta.name)}${conta.balance_cents === undefined ? '' : `<em>${reais(conta.balance_cents)}</em>`}</span>`).join('')}
     <button id="lancNovaConta">➕ Cadastrar conta</button></div>`;
+}
+
+// Convite para classificar o que ficou sem categoria — inclusive o que veio de
+// importações anteriores. Uma resposta resolve todos os parecidos.
+function faixaSemCategoria() {
+  if (lanc.demo || lanc.erroCarga || lanc.carregando) return '';
+  const quantos = lanc.itens.filter(item => !item.category).length;
+  if (!quantos) return '';
+  return `<div class="lanc-pendentes">
+    <span>${svg('funil', 'ico-s')}${quantos === 1 ? '1 lançamento sem categoria' : `${quantos} lançamentos sem categoria`} — respondendo uma vez, todos os parecidos são classificados juntos.</span>
+    <button id="lancClassificar">Classificar agora</button></div>`;
 }
 
 function etiquetasDeFiltro() {
@@ -664,6 +676,10 @@ function ligarEventos() {
     if (marcadas.length) abrirConfirmacaoExclusao(marcadas, 'a seleção da tela');
   });
   tela.querySelector('#lancTentarDeNovo')?.addEventListener('click', carregarLancamentos);
+  tela.querySelector('#lancClassificar')?.addEventListener('click', () => {
+    if (typeof classificarLancamentosPendentes === 'function') return classificarLancamentosPendentes(0);
+    notify('🟡 A classificação não carregou nesta página');
+  });
   tela.querySelector('#lancNovaConta')?.addEventListener('click', () => {
     if (typeof abrirCriacaoDeConta === 'function') return abrirCriacaoDeConta();
     notify('🟡 O cadastro de conta não carregou nesta página');
