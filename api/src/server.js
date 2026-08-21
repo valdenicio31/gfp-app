@@ -184,37 +184,240 @@ app.post('/accounts', requireAuth, allowRoles('admin','adult'), async (req, res)
   res.status(201).json({ id, name, type, balance_cents: balanceCents, is_private: isPrivate });
 });
 
+const SEM_CATEGORIA = '__sem_categoria__';
+const isoDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const isUuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const listaFiltro = value => String(value ?? '').split('|').map(item => item.trim()).filter(Boolean).slice(0, 80);
+
 const transactionSchema = z.object({
   accountId: z.uuid(),
   type: z.enum(['income','expense']),
   description: z.string().trim().min(2).max(140),
   amountCents: z.number().int().positive().max(999999999999),
-  occurredOn: z.iso.date()
+  occurredOn: z.iso.date(),
+  category: z.string().trim().max(40).nullish(),
+  supplier: z.string().trim().max(120).nullish()
+});
+const transactionPatchSchema = transactionSchema.partial();
+const bulkDeleteSchema = z.object({
+  ids: z.array(z.uuid()).max(1000).optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+  accountId: z.uuid().optional()
 });
 
-app.get('/transactions', requireAuth, async (req, res) => {
+// Monta o filtro compartilhado por lista, resumo e exclusão em lote.
+// Só devolve lançamentos que o usuário pode ver: os das contas dele e,
+// para o administrador em visão familiar, as contas não privadas da família.
+function filtroLancamentos(req, origem = {}) {
   const familyScope = req.auth.role === 'admin' && req.query.scope === 'family';
-  const result = await query(`select t.id,t.type,t.description,t.amount_cents,t.occurred_on,t.account_id,a.name account_name
+  const params = [req.auth.familyId, req.auth.sub, familyScope];
+  const where = ['t.family_id=$1', '(a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))'];
+  const add = (sql, value) => { params.push(value); where.push(sql.replace('$?', `$${params.length}`)); };
+
+  const de = origem.from ?? req.query.from;
+  const ate = origem.to ?? req.query.to;
+  if (isoDate(de)) add('t.occurred_on>=$?::date', de);
+  if (isoDate(ate)) add('t.occurred_on<=$?::date', ate);
+
+  const contaUnica = origem.accountId;
+  if (isUuid(contaUnica)) add('t.account_id=$?::uuid', contaUnica);
+
+  const ids = Array.isArray(origem.ids) ? origem.ids.filter(isUuid) : [];
+  if (ids.length) add('t.id=any($?::uuid[])', ids);
+
+  const categorias = listaFiltro(req.query.categories);
+  if (categorias.length) {
+    const nomes = categorias.filter(item => item !== SEM_CATEGORIA);
+    const semCategoria = categorias.includes(SEM_CATEGORIA);
+    params.push(nomes);
+    const trecho = `t.category=any($${params.length}::text[])`;
+    where.push(semCategoria ? `(${trecho} or t.category is null or t.category='')` : trecho);
+  }
+
+  const contas = listaFiltro(req.query.accounts).filter(isUuid);
+  if (contas.length) add('t.account_id=any($?::uuid[])', contas);
+
+  const tipos = listaFiltro(req.query.types).filter(item => ['income','expense','transfer'].includes(item));
+  if (tipos.length) add('t.type=any($?::text[])', tipos);
+
+  const meses = listaFiltro(req.query.months).filter(item => /^\d{4}-\d{2}$/.test(item));
+  if (meses.length) add(`to_char(t.occurred_on,'YYYY-MM')=any($?::text[])`, meses);
+
+  const busca = String(req.query.search ?? '').trim().slice(0, 80);
+  if (busca) {
+    params.push(busca);
+    const alvo = `$${params.length}`;
+    where.push(`(t.description ilike '%'||${alvo}||'%' or coalesce(t.supplier,'') ilike '%'||${alvo}||'%')`);
+  }
+
+  return { where: where.join(' and '), params, familyScope };
+}
+
+const COLUNAS_LANCAMENTO = `t.id,t.type,t.description,t.amount_cents,to_char(t.occurred_on,'YYYY-MM-DD') occurred_on,t.account_id,t.category,t.supplier,t.created_by,a.name account_name,a.is_private`;
+
+app.get('/transactions', requireAuth, async (req, res) => {
+  const { where, params } = filtroLancamentos(req);
+  const limite = Math.min(Math.max(Number(req.query.limit) || 500, 1), 2000);
+  const itens = await query(`select ${COLUNAS_LANCAMENTO}
     from transactions t join accounts a on a.id=t.account_id
-    where t.family_id=$1 and (a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))
-    order by t.occurred_on desc,t.created_at desc limit 200`, [req.auth.familyId, req.auth.sub, familyScope]);
-  res.json(result.rows);
+    where ${where}
+    order by t.occurred_on desc,t.created_at desc limit ${limite}`, params);
+
+  // Sem envelope a resposta continua sendo a lista pura (compatível com o que já existe).
+  if (!['1','true','sim'].includes(String(req.query.envelope || ''))) return res.json(itens.rows);
+
+  const resumo = await query(`select count(*)::int total,
+      coalesce(sum(case when t.type='income' then t.amount_cents else 0 end),0)::bigint income_cents,
+      coalesce(sum(case when t.type='expense' then t.amount_cents else 0 end),0)::bigint expense_cents
+    from transactions t join accounts a on a.id=t.account_id where ${where}`, params);
+
+  // Listas de valores de cada coluna — é o que alimenta o filtro no estilo AutoFiltro.
+  // Elas ignoram os filtros ativos de propósito: a lista da coluna mostra sempre todos os valores.
+  const escopo = filtroLancamentos({ auth: req.auth, query: { scope: req.query.scope } });
+  const [categorias, contas, tipos, meses] = await Promise.all([
+    query(`select coalesce(nullif(t.category,''),'${SEM_CATEGORIA}') valor,count(*)::int total
+      from transactions t join accounts a on a.id=t.account_id where ${escopo.where} group by 1 order by 1`, escopo.params),
+    query(`select t.account_id valor,a.name rotulo,count(*)::int total
+      from transactions t join accounts a on a.id=t.account_id where ${escopo.where} group by 1,2 order by 2`, escopo.params),
+    query(`select t.type valor,count(*)::int total
+      from transactions t join accounts a on a.id=t.account_id where ${escopo.where} group by 1 order by 1`, escopo.params),
+    query(`select to_char(t.occurred_on,'YYYY-MM') valor,count(*)::int total
+      from transactions t join accounts a on a.id=t.account_id where ${escopo.where} group by 1 order by 1 desc`, escopo.params)
+  ]);
+
+  const linha = resumo.rows[0] || { total: 0, income_cents: 0, expense_cents: 0 };
+  res.json({
+    items: itens.rows,
+    summary: {
+      total: linha.total,
+      incomeCents: Number(linha.income_cents),
+      expenseCents: Number(linha.expense_cents),
+      netCents: Number(linha.income_cents) - Number(linha.expense_cents),
+      shown: itens.rows.length
+    },
+    facets: {
+      categories: categorias.rows,
+      accounts: contas.rows,
+      types: tipos.rows,
+      months: meses.rows
+    }
+  });
 });
+
+// Uma conta só pode receber lançamento de quem é dono dela; o administrador
+// também alcança as contas familiares não privadas.
+async function contaGravavel(req, accountId) {
+  const conta = await query(`select id,owner_user_id,is_private from accounts where id=$1 and family_id=$2`, [accountId, req.auth.familyId]);
+  const linha = conta.rows[0];
+  if (!linha) return null;
+  const propria = linha.owner_user_id === req.auth.sub;
+  const familiarDoAdmin = req.auth.role === 'admin' && linha.is_private === false;
+  return propria || familiarDoAdmin ? linha : null;
+}
+
+async function lancamentoGravavel(req, id) {
+  const resultado = await query(`select t.id,t.type,t.amount_cents,t.account_id,a.owner_user_id,a.is_private
+    from transactions t join accounts a on a.id=t.account_id
+    where t.id=$1 and t.family_id=$2 and (a.owner_user_id=$3 or ($4::boolean=true and a.is_private=false))`,
+    [id, req.auth.familyId, req.auth.sub, req.auth.role === 'admin']);
+  return resultado.rows[0] || null;
+}
+
+const efeito = linha => (linha.type === 'income' ? Number(linha.amount_cents) : -Number(linha.amount_cents));
 
 app.post('/transactions', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
   const parsed = transactionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Dados do lançamento inválidos' });
-  const { accountId, type, description, amountCents, occurredOn } = parsed.data;
-  const account = await query(`select id,owner_user_id from accounts where id=$1 and family_id=$2`, [accountId, req.auth.familyId]);
-  if (!account.rows[0] || account.rows[0].owner_user_id !== req.auth.sub) return res.status(404).json({ error: 'Conta não encontrada' });
+  const { accountId, type, description, amountCents, occurredOn, category, supplier } = parsed.data;
+  if (!await contaGravavel(req, accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
   const id = crypto.randomUUID();
   await transaction(async client => {
-    await client.query(`insert into transactions (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on)
-      values ($1,$2,$3,$4,$5,$6,$7,$8)`, [id, req.auth.familyId, accountId, req.auth.sub, type, description, amountCents, occurredOn]);
+    await client.query(`insert into transactions (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on,category,supplier)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [id, req.auth.familyId, accountId, req.auth.sub, type, description, amountCents, occurredOn, category || null, supplier || null]);
     await client.query(`update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3`,
       [type === 'income' ? amountCents : -amountCents, accountId, req.auth.familyId]);
   });
   res.status(201).json({ id });
+});
+
+app.patch('/transactions/:id', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Lançamento inválido' });
+  const parsed = transactionPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do lançamento inválidos' });
+  const atual = await lancamentoGravavel(req, req.params.id);
+  if (!atual) return res.status(404).json({ error: 'Lançamento não encontrado' });
+
+  const destino = parsed.data.accountId ?? atual.account_id;
+  if (destino !== atual.account_id && !await contaGravavel(req, destino)) {
+    return res.status(404).json({ error: 'Conta de destino não encontrada' });
+  }
+  const novo = {
+    type: parsed.data.type ?? atual.type,
+    amount_cents: parsed.data.amountCents ?? Number(atual.amount_cents)
+  };
+
+  await transaction(async client => {
+    const campos = [], valores = [];
+    const setar = (coluna, valor) => { valores.push(valor); campos.push(`${coluna}=$${valores.length}`); };
+    if (parsed.data.accountId !== undefined) setar('account_id', destino);
+    if (parsed.data.type !== undefined) setar('type', parsed.data.type);
+    if (parsed.data.description !== undefined) setar('description', parsed.data.description);
+    if (parsed.data.amountCents !== undefined) setar('amount_cents', parsed.data.amountCents);
+    if (parsed.data.occurredOn !== undefined) setar('occurred_on', parsed.data.occurredOn);
+    if (parsed.data.category !== undefined) setar('category', parsed.data.category || null);
+    if (parsed.data.supplier !== undefined) setar('supplier', parsed.data.supplier || null);
+    if (campos.length) {
+      valores.push(req.params.id, req.auth.familyId);
+      await client.query(`update transactions set ${campos.join(',')} where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+    }
+    // Desfaz o efeito antigo no saldo e aplica o novo — mesmo se a conta mudou.
+    await client.query(`update accounts set balance_cents=balance_cents-$1 where id=$2 and family_id=$3`,
+      [efeito(atual), atual.account_id, req.auth.familyId]);
+    await client.query(`update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3`,
+      [efeito(novo), destino, req.auth.familyId]);
+  });
+  res.json({ id: req.params.id });
+});
+
+app.delete('/transactions/:id', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Lançamento inválido' });
+  const atual = await lancamentoGravavel(req, req.params.id);
+  if (!atual) return res.status(404).json({ error: 'Lançamento não encontrado' });
+  await transaction(async client => {
+    await client.query(`delete from transactions where id=$1 and family_id=$2`, [req.params.id, req.auth.familyId]);
+    await client.query(`update accounts set balance_cents=balance_cents-$1 where id=$2 and family_id=$3`,
+      [efeito(atual), atual.account_id, req.auth.familyId]);
+  });
+  res.json({ deleted: 1 });
+});
+
+// Exclusão em lote: por seleção (ids), por período (from/to) ou pelos dois.
+// Apagar em lote é do administrador e do adulto.
+app.post('/transactions/bulk-delete', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = bulkDeleteSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Seleção inválida' });
+  const { ids, from, to, accountId } = parsed.data;
+  if (!ids?.length && !from && !to) return res.status(400).json({ error: 'Escolha a seleção ou o período que será excluído' });
+
+  const { where, params } = filtroLancamentos(req, { ids, from, to, accountId });
+  const alvo = await query(`select t.id,t.type,t.amount_cents,t.account_id
+    from transactions t join accounts a on a.id=t.account_id where ${where}`, params);
+  if (!alvo.rows.length) return res.json({ deleted: 0, accounts: 0 });
+
+  const porConta = new Map();
+  for (const linha of alvo.rows) porConta.set(linha.account_id, (porConta.get(linha.account_id) || 0) + efeito(linha));
+
+  await transaction(async client => {
+    await client.query(`delete from transactions where family_id=$1 and id=any($2::uuid[])`,
+      [req.auth.familyId, alvo.rows.map(linha => linha.id)]);
+    for (const [conta, ajuste] of porConta) {
+      await client.query(`update accounts set balance_cents=balance_cents-$1 where id=$2 and family_id=$3`,
+        [ajuste, conta, req.auth.familyId]);
+    }
+  });
+  res.json({ deleted: alvo.rows.length, accounts: porConta.size });
 });
 
 const cardSchema=z.object({name:z.string().trim().min(2).max(60),brand:z.string().trim().min(2).max(30),lastFour:z.string().regex(/^\d{4}$/),limitCents:z.number().int().positive(),closingDay:z.number().int().min(1).max(31),dueDay:z.number().int().min(1).max(31)});
