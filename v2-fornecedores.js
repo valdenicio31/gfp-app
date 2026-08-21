@@ -61,6 +61,8 @@ const REGRAS = [
   [/\bBOOKING|\bAIRBNB|\bDECOLAR|\bHOTEL\b|\bPOUSADA|\bLATAM\b|\bGOL LINHAS|\bAZUL LINHAS|\bCVC\b/, null, 'Lazer'],
   [/\bBAR \b|\bCHOPP|\bCERVEJARIA|\bBOTECO/, null, 'Lazer'],
   // Outros (entradas e encargos)
+  [/\bPAGAMENTO DE FATURA|\bPAGAMENTO FATURA|\bFATURA CARTAO|\bFATURA DO CARTAO/, 'Fatura do cartão', 'Outros'],
+  [/\bRESGATE RDB|\bAPLICACAO RDB|\bRENDIMENTO RDB|\bCAIXINHA\b|\bRESERVA DE EMERGENCIA/, null, 'Outros'],
   [/\bSALARIO|\bFOLHA DE PAGAMENTO|\bPRO LABORE|\bPROLABORE|\bDECIMO TERCEIRO|\bFERIAS\b/, null, 'Outros'],
   [/\bRENDIMENTO|\bJUROS\b|\bDIVIDENDO|\bRESGATE\b|\bCDB\b|\bTESOURO\b/, null, 'Outros'],
   [/\bTARIFA|\bANUIDADE|\bIOF\b|\bMULTA\b|\bJUROS DE MORA/, null, 'Outros'],
@@ -103,17 +105,23 @@ function marcas(descricao) {
 function doHistorico(descricao, historico = []) {
   const alvo = new Set(chave(descricao).split(' ').filter(p => p.length >= 4 && !RUIDO.has(p) && !CONECTORES.has(p)));
   if (!alvo.size) return null;
-  let melhor = null, melhorNota = 0;
+  let melhor = null, melhorNota = 0, melhorIguais = 0, melhorPalavra = '';
   for (const item of historico) {
     if (!item || !item.category) continue;
     const outras = new Set(chave(item.description).split(' ').filter(p => p.length >= 4 && !RUIDO.has(p) && !CONECTORES.has(p)));
     if (!outras.size) continue;
-    let iguais = 0;
-    for (const palavra of alvo) if (outras.has(palavra)) iguais++;
-    const nota = iguais / Math.min(alvo.size, outras.size);
-    if (nota > melhorNota) { melhorNota = nota; melhor = item; }
+    const iguais = [...alvo].filter(palavra => outras.has(palavra));
+    const nota = iguais.length / Math.min(alvo.size, outras.size);
+    if (nota > melhorNota) {
+      melhorNota = nota; melhor = item;
+      melhorIguais = iguais.length;
+      melhorPalavra = iguais.sort((a, b) => b.length - a.length)[0] || '';
+    }
   }
-  if (!melhor || melhorNota < 0.6) return null;
+  // uma palavra comum em comum ("pagamentos", "tecnologia") não é evidência:
+  // exige duas palavras iguais, ou uma palavra longa quando o nome é de uma só
+  const evidenciaSuficiente = melhorIguais >= 2 || (melhorIguais === 1 && melhorPalavra.length >= 6 && alvo.size <= 2);
+  if (!melhor || melhorNota < 0.6 || !evidenciaSuficiente) return null;
   return {
     fornecedor: melhor.supplier || nomeProvavel(melhor.description),
     categoria: melhor.category,

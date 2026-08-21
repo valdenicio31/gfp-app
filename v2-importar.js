@@ -38,11 +38,33 @@ function contaPeloNomeDoArquivo(nomeArquivo) {
 
 /* ---------- passo 1: arquivo e conta ---------- */
 
-function abrirImportacao() {
+async function abrirImportacao() {
   imp.nomeArquivo = ''; imp.linhas = []; imp.avisos = []; imp.erro = '';
   imp.marcadas = new Set(); imp.mostrar = 300;
+
+  // Confirma a lista de contas no servidor antes de qualquer conclusão: se a
+  // primeira carga da tela falhou (instância dormindo), a lista pode estar vazia
+  // por engano — e aí não é caso de pedir para cadastrar conta.
+  if (!lanc.demo && !contasDisponiveis().length) {
+    abrirCaixa('<div><h3>Importar extrato de qualquer banco</h3><p class="sub">Buscando suas contas…</p></div>');
+    try {
+      lanc.contas = await request('/accounts?scope=family', { headers: authHeaders(), cache: 'no-store' });
+    } catch (falha) {
+      const fundoErro = abrirCaixa(`
+        <div><h3>Não consegui buscar suas contas</h3>
+          <p class="sub">${seguro(falha.message)}. Isso costuma ser a instância gratuita acordando — tente de novo em alguns segundos.</p></div>
+        <div class="pe"><button data-fechar="1">Fechar</button><button class="principal" id="impTentarDeNovo">Tentar de novo</button></div>`);
+      fundoErro.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
+      fundoErro.querySelector('#impTentarDeNovo').addEventListener('click', abrirImportacao);
+      return;
+    }
+  }
+
   const contas = contasDisponiveis();
-  imp.contaId = imp.contaId || contas[0]?.id || '';
+  if (!contas.some(conta => conta.id === imp.contaId)) imp.contaId = contas[0]?.id || '';
+
+  // Sem nenhuma conta cadastrada não há para onde importar: cria a conta aqui mesmo.
+  if (!contas.length) return abrirCriacaoDeConta();
 
   const fundo = abrirCaixa(`
     <div><h3>Importar extrato de qualquer banco</h3>
@@ -55,14 +77,20 @@ function abrirImportacao() {
     </label>
     <div class="campos">
       <label class="largo">Conta que recebe os lançamentos
-        <select id="impConta">${contas.map(conta => `<option value="${seguro(conta.id)}" ${conta.id === imp.contaId ? 'selected' : ''}>${seguro(conta.name)}</option>`).join('')}</select>
+        <select id="impConta">
+          ${contas.map(conta => `<option value="${seguro(conta.id)}" ${conta.id === imp.contaId ? 'selected' : ''}>${seguro(conta.name)}</option>`).join('')}
+          <option value="__nova__">➕ Cadastrar outra conta…</option>
+        </select>
       </label>
     </div>
     <p class="lanc-erro" id="impErro"></p>
     <div class="pe"><button data-fechar="1">Cancelar</button></div>`);
 
   fundo.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
-  fundo.querySelector('#impConta').addEventListener('change', evento => { imp.contaId = evento.target.value; });
+  fundo.querySelector('#impConta').addEventListener('change', evento => {
+    if (evento.target.value === '__nova__') return abrirCriacaoDeConta();
+    imp.contaId = evento.target.value;
+  });
   fundo.querySelector('#impArquivo').addEventListener('change', async evento => {
     const arquivo = evento.target.files?.[0];
     if (!arquivo) return;
@@ -70,8 +98,69 @@ function abrirImportacao() {
       fundo.querySelector('#impErro').textContent = 'Arquivo muito grande (máximo 8 MB). Exporte um período menor.';
       return;
     }
-    imp.contaId = fundo.querySelector('#impConta').value;
+    const escolhida = fundo.querySelector('#impConta').value;
+    if (!escolhida || escolhida === '__nova__') {
+      fundo.querySelector('#impErro').textContent = 'Escolha primeiro a conta que vai receber os lançamentos.';
+      return;
+    }
+    imp.contaId = escolhida;
     await prepararPrevia(arquivo);
+  });
+}
+
+// Cadastra a conta sem sair da importação — é o caso de quem está começando.
+function abrirCriacaoDeConta() {
+  const primeira = !contasDisponiveis().length;
+  const fundo = abrirCaixa(`
+    <div><h3>${primeira ? 'Antes de importar, cadastre a conta' : 'Cadastrar outra conta'}</h3>
+      <p class="sub">${primeira
+        ? 'Os lançamentos do extrato precisam de uma conta para entrar. Cadastre a conta do banco que você vai importar.'
+        : 'A nova conta já fica selecionada para esta importação.'}</p></div>
+    <div class="campos">
+      <label class="largo">Nome da conta<input id="impNomeConta" maxlength="80" placeholder="Ex.: Nubank · corrente" autocomplete="off"></label>
+      <label>Tipo<select id="impTipoConta">
+        <option value="checking">Conta corrente</option>
+        <option value="savings">Poupança</option>
+        <option value="cash">Dinheiro</option>
+        <option value="investment">Investimento</option>
+      </select></label>
+      <label>Saldo inicial (R$)<input id="impSaldoConta" type="number" step="0.01" value="0"></label>
+    </div>
+    <p class="lanc-erro" id="impErroConta"></p>
+    <div class="pe">
+      <button data-fechar="1">Cancelar</button>
+      <button class="principal" id="impSalvarConta">Cadastrar conta e continuar</button>
+    </div>`);
+
+  fundo.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
+  fundo.querySelector('#impSalvarConta').addEventListener('click', async () => {
+    const erro = fundo.querySelector('#impErroConta');
+    const nome = fundo.querySelector('#impNomeConta').value.trim();
+    if (nome.length < 2) return erro.textContent = 'Dê um nome com pelo menos 2 letras para a conta.';
+    const dados = {
+      name: nome,
+      type: fundo.querySelector('#impTipoConta').value,
+      balanceCents: Math.round(Number(String(fundo.querySelector('#impSaldoConta').value).replace(',', '.')) * 100) || 0,
+      isPrivate: false
+    };
+    const botao = fundo.querySelector('#impSalvarConta');
+    botao.disabled = true;
+    try {
+      if (lanc.demo) {
+        const id = `demo-conta-${Date.now()}`;
+        lanc.contas = [...lanc.contas, { id, name: dados.name }];
+        imp.contaId = id;
+      } else {
+        const criada = await request('/accounts', { method: 'POST', headers: authHeaders(), body: JSON.stringify(dados) });
+        imp.contaId = criada.id;
+        lanc.contas = await request('/accounts?scope=family', { headers: authHeaders(), cache: 'no-store' });
+      }
+      notify(`🟢 Conta ${dados.name} cadastrada`);
+      abrirImportacao();
+    } catch (falha) {
+      botao.disabled = false;
+      erro.textContent = falha.message;
+    }
   });
 }
 
@@ -123,6 +212,10 @@ async function prepararPrevia(arquivo) {
 
 // Pergunta à API quais linhas já existem e desmarca essas.
 async function conferirRepetidos() {
+  if (!imp.contaId) {
+    imp.avisos = [...imp.avisos, 'Escolha a conta que vai receber os lançamentos para eu conferir os repetidos.'];
+    return;
+  }
   try {
     for (let inicio = 0; inicio < imp.linhas.length; inicio += 500) {
       const bloco = imp.linhas.slice(inicio, inicio + 500);
@@ -164,7 +257,11 @@ function desenharPrevia(conferindo = false) {
         <p class="sub">${seguro(imp.nomeArquivo)} · formato ${seguro(imp.formato)} · ${imp.linhas.length} ${imp.linhas.length === 1 ? 'linha lida' : 'linhas lidas'}</p>
       </div>
       <label class="imp-conta">Conta que recebe
-        <select id="impContaPrevia">${contasDisponiveis().map(c => `<option value="${seguro(c.id)}" ${c.id === imp.contaId ? 'selected' : ''}>${seguro(c.name)}</option>`).join('')}</select>
+        <select id="impContaPrevia">
+          ${imp.contaId ? '' : '<option value="">escolha a conta…</option>'}
+          ${contasDisponiveis().map(c => `<option value="${seguro(c.id)}" ${c.id === imp.contaId ? 'selected' : ''}>${seguro(c.name)}</option>`).join('')}
+          <option value="__nova__">➕ Cadastrar outra conta…</option>
+        </select>
       </label>
       <button class="imp-trocar" id="impTrocar">${svg('atualizar', 'ico-s')}Trocar arquivo</button>
     </div>
@@ -229,6 +326,7 @@ function desenharPrevia(conferindo = false) {
   fundo.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
   fundo.querySelector('#impTrocar').addEventListener('click', abrirImportacao);
   fundo.querySelector('#impContaPrevia')?.addEventListener('change', async evento => {
+    if (evento.target.value === '__nova__') return abrirCriacaoDeConta();
     imp.contaId = evento.target.value;
     // trocou a conta: os repetidos precisam ser conferidos de novo
     for (const linha of imp.linhas) { linha.duplicado = false; linha.motivo = null; }
@@ -282,6 +380,10 @@ function desenharPrevia(conferindo = false) {
 async function converterEmLancamentos() {
   const escolhidas = imp.linhas.filter(linha => imp.marcadas.has(linha.indice));
   if (!escolhidas.length) return;
+  if (!imp.contaId) {
+    imp.erro = 'Escolha a conta que vai receber os lançamentos.';
+    return desenharPrevia();
+  }
   imp.ocupado = true;
   desenharPrevia();
 
