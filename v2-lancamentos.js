@@ -29,7 +29,8 @@ const ICONES = {
   calendario: '<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
   marcados: '<path d="M5 13l4 4L19 7"/>',
   direita: '<path d="M9 6l6 6-6 6"/>',
-  atualizar: '<path d="M20 11a8 8 0 10-2.6 5.9"/><path d="M20 5v6h-6"/>'
+  atualizar: '<path d="M20 11a8 8 0 10-2.6 5.9"/><path d="M20 5v6h-6"/>',
+  alerta: '<path d="M12 9v4"/><path d="M12 16.5h.01"/><path d="M10.3 4.9L2.8 18a2 2 0 001.7 3h15a2 2 0 001.7-3L13.7 4.9a2 2 0 00-3.4 0z"/>'
 };
 const svg = (nome, classe = 'ico') => `<svg class="${classe}" viewBox="0 0 24 24">${ICONES[nome]}</svg>`;
 
@@ -389,7 +390,7 @@ function fecharFlutuantes() {
 
 /* ---------- caixas ---------- */
 
-function abrirCaixa(html) {
+function abrirCaixa(html, classeExtra = '') {
   let fundo = document.querySelector('#lancFundo');
   if (!fundo) {
     fundo = document.createElement('div');
@@ -398,7 +399,7 @@ function abrirCaixa(html) {
     document.body.appendChild(fundo);
     fundo.addEventListener('click', evento => { if (evento.target === fundo) fecharCaixa(); });
   }
-  fundo.innerHTML = `<div class="lanc-caixa">${html}</div>`;
+  fundo.innerHTML = `<div class="lanc-caixa ${classeExtra}">${html}</div>`;
   fundo.hidden = false;
   return fundo;
 }
@@ -611,8 +612,10 @@ function ligarEventos() {
   });
   tela.querySelector('#lancExportar').addEventListener('click', exportarCsv);
   tela.querySelector('#lancRecarregar').addEventListener('click', carregarLancamentos);
-  tela.querySelector('#lancImportar').addEventListener('click', () =>
-    notify('🟡 Importar extrato de qualquer banco é a próxima etapa — as telas já estão aprovadas'));
+  tela.querySelector('#lancImportar').addEventListener('click', () => {
+    if (typeof abrirImportacao === 'function') return abrirImportacao();
+    notify('🟡 A importação de extrato não carregou nesta página');
+  });
 }
 
 document.addEventListener('click', evento => {
