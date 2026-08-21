@@ -56,7 +56,7 @@ function loadDemoAdmin(profile){
  document.querySelectorAll('[data-open-module]').forEach(button=>button.disabled=profile!=='admin');
  if(profile!=='admin'){document.querySelectorAll('[data-view]').forEach(b=>b.hidden=b.dataset.view==='family');document.querySelector('[data-view="private"]').click();document.querySelector('[data-module="users"]').disabled=true;document.querySelector('[data-module="profiles"]').disabled=true;}
 }
-document.querySelectorAll('.sidebar nav button:not([data-open-module]):not([data-open-cards])').forEach(button=>button.addEventListener('click',()=>{
+document.querySelectorAll('.sidebar nav button:not([data-open-module]):not([data-open-cards]):not([data-tela])').forEach(button=>button.addEventListener('click',()=>{
   document.querySelectorAll('.sidebar nav button').forEach(item=>item.classList.toggle('active',item===button));
   notify(`${button.textContent.trim()}: módulo preparado para a próxima etapa`);
 }));
