@@ -36,7 +36,8 @@ export async function migrate() {
     '../sql/007_password_reset_tokens.sql',
     '../sql/008_transaction_category.sql',
     '../sql/009_transaction_import.sql',
-    '../sql/010_cadastros.sql'
+    '../sql/010_cadastros.sql',
+    '../sql/011_agenda.sql'
   ];
   for (const path of migrations) {
     const fullPath = fileURLToPath(new URL(path, import.meta.url));

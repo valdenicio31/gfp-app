@@ -1092,6 +1092,274 @@ app.get('/card-purchases',requireAuth,async(req,res)=>{const familyScope=req.aut
 app.post('/card-purchases',requireAuth,allowRoles('admin','adult','dependent'),async(req,res)=>{const parsed=purchaseSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Compra inválida'});const d=parsed.data,card=await query('select id,owner_user_id from credit_cards where id=$1 and family_id=$2',[d.cardId,req.auth.familyId]);if(!card.rows[0]||card.rows[0].owner_user_id!==req.auth.sub)return res.status(404).json({error:'Cartão não encontrado'});const id=crypto.randomUUID();await query(`insert into card_purchases(id,family_id,card_id,created_by,description,category,amount_cents,installments,purchased_on) values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[id,req.auth.familyId,d.cardId,req.auth.sub,d.description,d.category,d.amountCents,d.installments,d.purchasedOn]);res.status(201).json({id})});
 
 
+/* ---------------- agenda de contas a pagar e a receber ---------------- */
+/* Uma conta prevista é uma regra ("aluguel, todo dia 10"). O calendário
+   expande a regra nos dias do mês pedido e marca o que já virou lançamento. */
+
+const RECORRENCIAS = ['once', 'weekly', 'monthly', 'yearly'];
+
+const contaPrevistaSchema = z.object({
+  kind: z.enum(['payable', 'receivable']),
+  description: z.string().trim().min(2).max(160),
+  amountCents: z.number().int().positive(),
+  category: z.string().trim().max(40).nullish(),
+  supplier: z.string().trim().max(120).nullish(),
+  accountId: z.uuid().nullish(),
+  recurrence: z.enum(RECORRENCIAS).default('monthly'),
+  firstDueOn: z.iso.date(),
+  endsOn: z.iso.date().nullish(),
+  dayOfMonth: z.number().int().min(1).max(31).nullish(),
+  weekday: z.number().int().min(0).max(6).nullish(),
+  monthOfYear: z.number().int().min(1).max(12).nullish(),
+  isActive: z.boolean().optional()
+});
+
+const soData = valor => (valor instanceof Date ? valor.toISOString().slice(0, 10) : String(valor).slice(0, 10));
+const diasNoMes = (ano, mes) => new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+const montarData = (ano, mes, dia) => `${ano}-${String(mes).padStart(2, '0')}-${String(Math.min(dia, diasNoMes(ano, mes))).padStart(2, '0')}`;
+
+/* Todos os vencimentos de uma regra dentro do mês pedido. */
+function vencimentosDoMes(regra, ano, mes) {
+  const primeiro = soData(regra.first_due_on);
+  const fim = regra.ends_on ? soData(regra.ends_on) : null;
+  const inicioDoMes = montarData(ano, mes, 1);
+  const fimDoMes = montarData(ano, mes, 31);
+  const dentro = data => data >= primeiro && data >= inicioDoMes && data <= fimDoMes && (!fim || data <= fim);
+  const datas = [];
+
+  if (regra.recurrence === 'once') {
+    if (dentro(primeiro)) datas.push(primeiro);
+  } else if (regra.recurrence === 'monthly') {
+    const dia = regra.day_of_month || Number(primeiro.slice(8, 10));
+    const candidata = montarData(ano, mes, dia);
+    if (dentro(candidata)) datas.push(candidata);
+  } else if (regra.recurrence === 'yearly') {
+    const mesAlvo = regra.month_of_year || Number(primeiro.slice(5, 7));
+    if (mesAlvo === mes) {
+      const dia = regra.day_of_month || Number(primeiro.slice(8, 10));
+      const candidata = montarData(ano, mes, dia);
+      if (dentro(candidata)) datas.push(candidata);
+    }
+  } else if (regra.recurrence === 'weekly') {
+    const alvo = regra.weekday === null || regra.weekday === undefined
+      ? new Date(`${primeiro}T00:00:00Z`).getUTCDay()
+      : Number(regra.weekday);
+    for (let dia = 1; dia <= diasNoMes(ano, mes); dia += 1) {
+      const candidata = montarData(ano, mes, dia);
+      if (new Date(`${candidata}T00:00:00Z`).getUTCDay() === alvo && dentro(candidata)) datas.push(candidata);
+    }
+  }
+  return datas;
+}
+
+async function contaPrevistaDaFamilia(req, id) {
+  const resultado = await query('select * from scheduled_bills where id=$1 and family_id=$2', [id, req.auth.familyId]);
+  return resultado.rows[0] || null;
+}
+
+app.get('/scheduled-bills', requireAuth, async (req, res) => {
+  const resultado = await query(`select b.*, to_char(b.first_due_on,'YYYY-MM-DD') first_due_on, to_char(b.ends_on,'YYYY-MM-DD') ends_on,
+      a.name conta_nome, u.name criado_por
+    from scheduled_bills b
+    left join accounts a on a.id=b.account_id
+    left join users u on u.id=b.created_by
+    where b.family_id=$1 ${req.query.all === '1' ? '' : 'and b.is_active=true'}
+    order by b.kind, b.day_of_month nulls last, b.description`, [req.auth.familyId]);
+  res.json(resultado.rows);
+});
+
+app.post('/scheduled-bills', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = contaPrevistaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da conta prevista inválidos' });
+  const d = parsed.data;
+  if (d.accountId && !await contaGravavel(req, d.accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
+  const id = crypto.randomUUID();
+  await query(`insert into scheduled_bills
+      (id,family_id,created_by,kind,description,amount_cents,category,supplier,account_id,recurrence,day_of_month,weekday,month_of_year,first_due_on,ends_on)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+    [id, req.auth.familyId, req.auth.sub, d.kind, d.description, d.amountCents, d.category || null, d.supplier || null,
+      d.accountId || null, d.recurrence,
+      d.recurrence === 'monthly' || d.recurrence === 'yearly' ? (d.dayOfMonth || Number(d.firstDueOn.slice(8, 10))) : null,
+      d.recurrence === 'weekly' ? (d.weekday ?? new Date(`${d.firstDueOn}T00:00:00Z`).getUTCDay()) : null,
+      d.recurrence === 'yearly' ? (d.monthOfYear || Number(d.firstDueOn.slice(5, 7))) : null,
+      d.firstDueOn, d.endsOn || null]);
+  res.status(201).json({ id });
+});
+
+app.patch('/scheduled-bills/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Conta prevista inválida' });
+  const parsed = contaPrevistaSchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da conta prevista inválidos' });
+  const atual = await contaPrevistaDaFamilia(req, req.params.id);
+  if (!atual) return res.status(404).json({ error: 'Conta prevista não encontrada' });
+  const d = parsed.data;
+  if (d.accountId && !await contaGravavel(req, d.accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
+
+  const campos = [], valores = [];
+  const setar = (coluna, valor) => { valores.push(valor); campos.push(`${coluna}=$${valores.length}`); };
+  if (d.kind !== undefined) setar('kind', d.kind);
+  if (d.description !== undefined) setar('description', d.description);
+  if (d.amountCents !== undefined) setar('amount_cents', d.amountCents);
+  if (d.category !== undefined) setar('category', d.category || null);
+  if (d.supplier !== undefined) setar('supplier', d.supplier || null);
+  if (d.accountId !== undefined) setar('account_id', d.accountId || null);
+  if (d.recurrence !== undefined) setar('recurrence', d.recurrence);
+  if (d.dayOfMonth !== undefined) setar('day_of_month', d.dayOfMonth || null);
+  if (d.weekday !== undefined) setar('weekday', d.weekday ?? null);
+  if (d.monthOfYear !== undefined) setar('month_of_year', d.monthOfYear || null);
+  if (d.firstDueOn !== undefined) setar('first_due_on', d.firstDueOn);
+  if (d.endsOn !== undefined) setar('ends_on', d.endsOn || null);
+  if (d.isActive !== undefined) setar('is_active', d.isActive);
+  if (!campos.length) return res.json({ id: req.params.id });
+  valores.push(req.params.id, req.auth.familyId);
+  await query(`update scheduled_bills set ${campos.join(',')}, updated_at=now() where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+  res.json({ id: req.params.id });
+});
+
+app.delete('/scheduled-bills/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Conta prevista inválida' });
+  const atual = await contaPrevistaDaFamilia(req, req.params.id);
+  if (!atual) return res.status(404).json({ error: 'Conta prevista não encontrada' });
+  const pagos = await query('select count(*)::int total from scheduled_bill_payments where bill_id=$1', [req.params.id]);
+  if (pagos.rows[0].total > 0 && req.query.force !== '1') {
+    await query('update scheduled_bills set is_active=false, updated_at=now() where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+    return res.json({ desativada: 1, pagamentos: pagos.rows[0].total });
+  }
+  await query('delete from scheduled_bills where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  res.json({ deleted: 1 });
+});
+
+/* Pagar (ou receber): a previsão vira um lançamento de verdade. */
+const pagamentoSchema = z.object({
+  dueOn: z.iso.date(),
+  accountId: z.uuid().optional(),
+  amountCents: z.number().int().positive().optional(),
+  occurredOn: z.iso.date().optional()
+});
+
+app.post('/scheduled-bills/:id/pay', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Conta prevista inválida' });
+  const parsed = pagamentoSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do pagamento inválidos' });
+  const regra = await contaPrevistaDaFamilia(req, req.params.id);
+  if (!regra) return res.status(404).json({ error: 'Conta prevista não encontrada' });
+
+  const contaId = parsed.data.accountId || regra.account_id;
+  if (!contaId) return res.status(400).json({ error: 'Escolha a conta de onde sai o dinheiro' });
+  if (!await contaGravavel(req, contaId)) return res.status(404).json({ error: 'Conta não encontrada' });
+
+  const jaPago = await query('select id from scheduled_bill_payments where bill_id=$1 and due_on=$2', [regra.id, parsed.data.dueOn]);
+  if (jaPago.rows[0]) return res.status(409).json({ error: 'Este vencimento já foi baixado' });
+
+  const valor = parsed.data.amountCents || Number(regra.amount_cents);
+  const quando = parsed.data.occurredOn || parsed.data.dueOn;
+  const tipo = regra.kind === 'receivable' ? 'income' : 'expense';
+  const lancamentoId = crypto.randomUUID();
+
+  await transaction(async client => {
+    await client.query(`insert into transactions (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on,category,supplier)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [lancamentoId, req.auth.familyId, contaId, req.auth.sub, tipo, regra.description, valor, quando, regra.category || null, regra.supplier || null]);
+    await client.query('update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3',
+      [tipo === 'income' ? valor : -valor, contaId, req.auth.familyId]);
+    await client.query(`insert into scheduled_bill_payments (family_id,bill_id,transaction_id,due_on,paid_on,amount_cents,created_by)
+      values ($1,$2,$3,$4,$5,$6,$7)`,
+      [req.auth.familyId, regra.id, lancamentoId, parsed.data.dueOn, quando, valor, req.auth.sub]);
+    if (regra.recurrence === 'once') {
+      await client.query('update scheduled_bills set is_active=false, updated_at=now() where id=$1', [regra.id]);
+    }
+  });
+  res.status(201).json({ transactionId: lancamentoId, amountCents: valor, accountId: contaId });
+});
+
+/* Desfazer a baixa: apaga o lançamento e devolve o vencimento para a agenda. */
+app.delete('/scheduled-bills/:id/pay', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Conta prevista inválida' });
+  const dueOn = String(req.query.dueOn || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueOn)) return res.status(400).json({ error: 'Vencimento inválido' });
+  const baixa = await query(`select p.id,p.transaction_id,t.type,t.amount_cents,t.account_id
+    from scheduled_bill_payments p left join transactions t on t.id=p.transaction_id
+    where p.bill_id=$1 and p.due_on=$2 and p.family_id=$3`, [req.params.id, dueOn, req.auth.familyId]);
+  const linha = baixa.rows[0];
+  if (!linha) return res.status(404).json({ error: 'Este vencimento não está baixado' });
+  await transaction(async client => {
+    if (linha.transaction_id && linha.account_id) {
+      await client.query('update accounts set balance_cents=balance_cents-$1 where id=$2 and family_id=$3',
+        [efeito(linha), linha.account_id, req.auth.familyId]);
+      await client.query('delete from transactions where id=$1 and family_id=$2', [linha.transaction_id, req.auth.familyId]);
+    }
+    await client.query('delete from scheduled_bill_payments where id=$1', [linha.id]);
+    await client.query('update scheduled_bills set is_active=true, updated_at=now() where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  });
+  res.json({ desfeito: 1 });
+});
+
+/* O mês inteiro em uma resposta: lançamentos, previsões, faturas e prazos de metas. */
+app.get('/calendar', requireAuth, async (req, res) => {
+  const ano = Number(req.query.year) || new Date().getFullYear();
+  const mes = Number(req.query.month) || new Date().getMonth() + 1;
+  if (mes < 1 || mes > 12 || ano < 2000 || ano > 2100) return res.status(400).json({ error: 'Mês inválido' });
+  const primeiro = montarData(ano, mes, 1);
+  const ultimo = montarData(ano, mes, 31);
+  const podeVerTudo = req.auth.role === 'admin';
+
+  const [lancamentos, regras, baixas, cartoes, metas] = await Promise.all([
+    query(`select t.id, to_char(t.occurred_on,'YYYY-MM-DD') occurred_on, t.type, t.description, t.amount_cents,
+        t.category, t.supplier, a.name conta_nome
+      from transactions t join accounts a on a.id=t.account_id
+      where t.family_id=$1 and t.occurred_on between $2 and $3 and (a.owner_user_id=$4 or ($5::boolean=true and a.is_private=false))
+      order by t.occurred_on, t.created_at`, [req.auth.familyId, primeiro, ultimo, req.auth.sub, podeVerTudo]),
+    query(`select b.*, to_char(b.first_due_on,'YYYY-MM-DD') first_due_on, to_char(b.ends_on,'YYYY-MM-DD') ends_on, a.name conta_nome
+      from scheduled_bills b left join accounts a on a.id=b.account_id
+      where b.family_id=$1 and b.is_active=true`, [req.auth.familyId]),
+    query(`select bill_id, to_char(due_on,'YYYY-MM-DD') due_on, transaction_id, amount_cents
+      from scheduled_bill_payments where family_id=$1 and due_on between $2 and $3`, [req.auth.familyId, primeiro, ultimo]),
+    query(`select c.id, c.name, c.last_four, c.due_day,
+        coalesce((select sum(ceil(p.amount_cents::numeric/p.installments)) from card_purchases p where p.card_id=c.id),0) invoice_cents
+      from credit_cards c where c.family_id=$1 and ($2::boolean=true or c.owner_user_id=$3)`,
+      [req.auth.familyId, podeVerTudo, req.auth.sub]),
+    query(`select id, title, emoji, to_char(deadline,'YYYY-MM-DD') deadline, target_cents, current_cents
+      from goals where family_id=$1 and status='active' and deadline between $2 and $3`, [req.auth.familyId, primeiro, ultimo])
+  ]);
+
+  const pagoPor = new Map(baixas.rows.map(linha => [`${linha.bill_id}|${linha.due_on}`, linha]));
+  const previstas = [];
+  for (const regra of regras.rows) {
+    for (const vencimento of vencimentosDoMes(regra, ano, mes)) {
+      const baixa = pagoPor.get(`${regra.id}|${vencimento}`);
+      previstas.push({
+        id: regra.id, due_on: vencimento, kind: regra.kind, description: regra.description,
+        amount_cents: baixa ? Number(baixa.amount_cents) : Number(regra.amount_cents),
+        category: regra.category, supplier: regra.supplier,
+        account_id: regra.account_id, conta_nome: regra.conta_nome,
+        recurrence: regra.recurrence,
+        pago: Boolean(baixa), transaction_id: baixa ? baixa.transaction_id : null
+      });
+    }
+  }
+  previstas.sort((a, b) => (a.due_on < b.due_on ? -1 : a.due_on > b.due_on ? 1 : a.description.localeCompare(b.description, 'pt-BR')));
+
+  const faturas = cartoes.rows
+    .filter(cartao => Number(cartao.invoice_cents) > 0)
+    .map(cartao => ({ ...cartao, due_on: montarData(ano, mes, cartao.due_day) }));
+
+  const somar = (lista, teste) => lista.filter(teste).reduce((soma, item) => soma + Number(item.amount_cents), 0);
+  res.json({
+    year: ano, month: mes,
+    lancamentos: lancamentos.rows,
+    previstas, faturas, metas: metas.rows,
+    resumo: {
+      entradas_cents: somar(lancamentos.rows, l => l.type === 'income'),
+      saidas_cents: somar(lancamentos.rows, l => l.type === 'expense'),
+      a_pagar_cents: somar(previstas, p => p.kind === 'payable' && !p.pago),
+      a_receber_cents: somar(previstas, p => p.kind === 'receivable' && !p.pago),
+      pago_cents: somar(previstas, p => p.kind === 'payable' && p.pago),
+      faturas_cents: faturas.reduce((soma, f) => soma + Number(f.invoice_cents), 0)
+    }
+  });
+});
+
+
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 app.use((error, _req, res, _next) => {
   const errorId = crypto.randomUUID();

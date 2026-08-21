@@ -314,3 +314,117 @@ body:not(.tela-metas) #telaMetas{display:none}
   .met-mov{grid-template-columns:100px 1fr;row-gap:4px}
   .met-mov small{grid-column:2;text-align:left}
 }
+
+/* ---------- tela do calendário e agenda de contas ---------- */
+body.tela-calendario main>*:not(header):not(#telaCalendario){display:none!important}
+body:not(.tela-calendario) #telaCalendario{display:none}
+#telaCalendario{display:flex;flex-direction:column;gap:18px;margin-top:22px}
+.cal-barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 7px 24px #2113330a;padding:12px 14px}
+.cal-barra b{font-size:16px;min-width:150px;text-align:center;letter-spacing:-.01em}
+.cal-barra button:not(.cal-nova):not(.cal-hoje){border:1px solid var(--border);background:#fff;color:var(--text);border-radius:9px;width:36px;height:36px;font:800 14px/1 inherit;cursor:pointer}
+.cal-barra button:not(.cal-nova):not(.cal-hoje):hover{border-color:#d8cfe6;color:var(--purple)}
+.cal-hoje{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:9px;padding:11px 14px;font:800 13px/1 inherit;cursor:pointer}
+.cal-hoje:hover{border-color:var(--purple);color:#5b21b6}
+.cal-nova{margin-left:auto;display:flex;align-items:center;gap:8px;border:0;background:var(--purple);color:#fff;border-radius:10px;padding:12px 16px;font:800 13px/1 inherit;cursor:pointer}
+.cal-resumo{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.cal-resumo>div{background:#fff;border:1px solid var(--border);border-radius:15px;box-shadow:0 7px 24px #2113330a;padding:14px 16px;display:grid;gap:4px}
+.cal-resumo span{color:var(--muted);font-size:12px;font-weight:600}
+.cal-resumo strong{font-size:19px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.cal-resumo .receber strong{color:#15803d}
+.cal-resumo .pagar strong{color:#b91c1c}
+.cal-resumo .pago strong{color:var(--purple)}
+.cal-atraso{display:flex;gap:11px;align-items:flex-start;background:#fff7f7;border:1px solid #f3b9b9;border-radius:14px;padding:13px 16px;color:#b91c1c}
+.cal-atraso .ico-s{flex:0 0 auto;margin-top:2px}
+.cal-atraso b{display:block;font-size:14px}
+.cal-atraso span{font-size:13px;color:#9a3b3b;line-height:1.5}
+
+.cal-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 7px 24px #2113330a}
+.cal-cabeca{background:#faf8fd;padding:10px 8px;text-align:center;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.cal-dia{background:#fff;min-height:104px;padding:8px;display:flex;flex-direction:column;gap:5px}
+.cal-dia.fora{background:#fbfafd}
+.cal-dia[data-dia]{cursor:pointer}
+.cal-dia[data-dia]:hover{background:#faf8fd}
+.cal-dia[data-dia]:focus-visible{outline:2px solid var(--purple);outline-offset:-2px}
+.cal-dia>b{font-size:13px;color:var(--muted);font-weight:700;line-height:1}
+.cal-dia.cheio>b{color:var(--text)}
+.cal-dia.hoje{background:#f9f5ff}
+.cal-dia.hoje>b{background:var(--purple);color:#fff;border-radius:99px;width:22px;height:22px;display:grid;place-items:center;font-size:12px}
+.cal-marcas{display:flex;flex-direction:column;gap:3px;min-width:0}
+.cal-marca{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;border-radius:6px;padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-marca em{font-style:normal;font-weight:800;margin-left:auto;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.cal-marca.pagar{background:#fff1f1;color:#a51c1c}
+.cal-marca.receber{background:#effaf1;color:#136c2e}
+.cal-marca.pagar.atrasada{background:#dc2626;color:#fff}
+.cal-marca.receber.atrasada{background:#15803d;color:#fff}
+.cal-marca.baixada{background:#f2f0f6;color:#7b7189;text-decoration:line-through}
+.cal-marca.fatura{background:#fff6e6;color:#92580b}
+.cal-marca.meta{background:#f1ebff;color:#5b21b6}
+.cal-marca.lancado{background:var(--bg);color:var(--muted);font-weight:600}
+.cal-mais{font-size:10.5px;color:var(--muted);font-weight:700;padding-left:5px}
+
+.cal-bloco{background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 7px 24px #2113330a;padding:16px 18px 8px;display:flex;flex-direction:column;gap:12px}
+.cal-lista{display:flex;flex-direction:column}
+.cal-item{display:grid;grid-template-columns:58px minmax(140px,1fr) 150px 118px 100px;gap:14px;align-items:center;padding:12px 2px;border-bottom:1px solid #f4f1f8}
+.cal-item:last-child{border-bottom:0}
+.cal-lista.agenda .cal-item{grid-template-columns:86px minmax(140px,1fr) 150px 118px 66px}
+.cal-quando{display:grid;justify-items:center;background:var(--bg);border-radius:10px;padding:6px 4px}
+.cal-quando b{font-size:14px;font-variant-numeric:tabular-nums}
+.cal-quando small{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.cal-item.atrasada .cal-quando{background:#fff1f1}
+.cal-item.atrasada .cal-quando b{color:#b91c1c}
+.cal-tipo{font-size:11px;font-weight:800;border-radius:99px;padding:5px 9px;text-align:center}
+.cal-tipo.pagar{background:#fff1f1;color:#a51c1c}
+.cal-tipo.receber{background:#effaf1;color:#136c2e}
+.cal-quem{min-width:0}
+.cal-quem b{display:block;font-size:14.5px;word-break:break-word}
+.cal-quem small{color:var(--muted);font-size:12.5px}
+.cal-quem small i{font-style:normal;color:#b91c1c;font-weight:700}
+.cal-valor{text-align:right;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+.cal-valor.pagar{color:#b91c1c}
+.cal-valor.receber{color:#15803d}
+.cal-baixar{border:1.5px solid var(--purple);background:#f9f5ff;color:#5b21b6;border-radius:9px;padding:10px 12px;font:800 12.5px/1 inherit;cursor:pointer}
+.cal-baixar:hover{background:var(--purple);color:#fff}
+
+.cal-dia-detalhe{display:flex;flex-direction:column;gap:14px;max-height:56vh;overflow:auto}
+.cal-grupo{display:flex;flex-direction:column;gap:6px}
+.cal-grupo>small{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.cal-det{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:11px;padding:11px 13px}
+.cal-det span{flex:1;min-width:0}
+.cal-det b{display:block;font-size:14px;word-break:break-word}
+.cal-det small{color:var(--muted);font-size:12px}
+.cal-det em{font-style:normal;font-weight:800;font-size:14.5px;font-variant-numeric:tabular-nums}
+.cal-det em.pagar{color:#b91c1c}
+.cal-det em.receber{color:#15803d}
+.cal-det.atrasada{background:#fff1f1}
+.cal-det.baixada b{color:var(--muted)}
+.cal-det button{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:9px;padding:9px 12px;font:800 12.5px/1 inherit;cursor:pointer;white-space:nowrap}
+.cal-det button.principal{border:0;background:var(--purple);color:#fff}
+.lanc-caixa label[hidden]{display:none}
+
+@media(max-width:1180px){
+  .cal-resumo{grid-template-columns:repeat(3,1fr)}
+  .cal-item{grid-template-columns:52px minmax(120px,1fr) 108px 92px;gap:10px}
+  .cal-lista.agenda .cal-item{grid-template-columns:78px minmax(120px,1fr) 108px 56px}
+  .cal-item .cal-cat{display:none}
+  .cal-dia{min-height:92px}
+}
+@media(max-width:760px){
+  .cal-resumo{grid-template-columns:repeat(2,1fr)}
+  .cal-nova{margin-left:0;width:100%;justify-content:center}
+  .cal-grade{font-size:12px}
+  .cal-dia{min-height:74px;padding:5px}
+  .cal-marca{font-size:0;padding:0;height:6px;border-radius:99px;gap:0}
+  .cal-marca em{display:none}
+  .cal-marca.lancado{height:6px}
+  .cal-mais{display:none}
+  .cal-item{grid-template-columns:48px minmax(0,1fr) 96px;grid-template-areas:"quando quem valor" "quando acao acao";row-gap:8px}
+  .cal-item .cal-quando{grid-area:quando}
+  .cal-item .cal-quem{grid-area:quem}
+  .cal-item .cal-valor{grid-area:valor}
+  .cal-item .cal-baixar{grid-area:acao;justify-self:start}
+  .cal-lista.agenda .cal-item{grid-template-columns:86px minmax(0,1fr) 66px;grid-template-areas:"tipo quem acoes" "tipo valor valor";row-gap:6px}
+  .cal-lista.agenda .cal-tipo{grid-area:tipo}
+  .cal-lista.agenda .cal-quem{grid-area:quem}
+  .cal-lista.agenda .cal-valor{grid-area:valor;text-align:left}
+  .cal-lista.agenda .lanc-acoes{grid-area:acoes}
+}

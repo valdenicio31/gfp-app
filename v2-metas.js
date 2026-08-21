@@ -434,7 +434,7 @@ function ligarEventosMetas() {
 /* ---------- entrada na tela ---------- */
 
 function abrirTelaMetas() {
-  document.body.classList.remove('tela-lancamentos', 'tela-cadastros');
+  document.body.classList.remove('tela-lancamentos', 'tela-cadastros', 'tela-calendario');
   document.body.classList.add('tela-metas');
   document.querySelectorAll('.sidebar nav button').forEach(botao =>
     botao.classList.toggle('active', botao.dataset.tela === 'metas'));
