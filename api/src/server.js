@@ -163,13 +163,20 @@ const accountSchema = z.object({
   name: z.string().trim().min(2).max(80),
   type: z.enum(['checking','savings','cash','investment']),
   balanceCents: z.number().int().min(-999999999999).max(999999999999).default(0),
-  isPrivate: z.boolean().default(false)
+  isPrivate: z.boolean().default(false),
+  bankId: z.uuid().nullish(),
+  branchId: z.uuid().nullish(),
+  accountNumber: z.string().trim().max(30).nullish()
 });
 
 app.get('/accounts', requireAuth, async (req, res) => {
   const familyScope = req.auth.role === 'admin' && req.query.scope === 'family';
-  const result = await query(`select id,name,type,balance_cents,is_private,owner_user_id
-    from accounts where family_id=$1 and (owner_user_id=$2 or ($3::boolean=true and is_private=false)) order by name`,
+  const result = await query(`select a.id,a.name,a.type,a.balance_cents,a.is_private,a.owner_user_id,
+      a.bank_id,a.branch_id,a.account_number,b.name bank_name,b.code bank_code,f.number branch_number,f.name branch_name
+    from accounts a
+    left join banks b on b.id=a.bank_id
+    left join bank_branches f on f.id=a.branch_id
+    where a.family_id=$1 and (a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false)) order by a.name`,
     [req.auth.familyId, req.auth.sub, familyScope]);
   res.json(result.rows);
 });
@@ -178,10 +185,17 @@ app.post('/accounts', requireAuth, allowRoles('admin','adult'), async (req, res)
   const parsed = accountSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Dados da conta inválidos' });
   const id = crypto.randomUUID();
-  const { name, type, balanceCents, isPrivate } = parsed.data;
-  await query(`insert into accounts (id,family_id,owner_user_id,name,type,balance_cents,is_private)
-    values ($1,$2,$3,$4,$5,$6,$7)`, [id, req.auth.familyId, req.auth.sub, name, type, balanceCents, isPrivate]);
-  res.status(201).json({ id, name, type, balance_cents: balanceCents, is_private: isPrivate });
+  const { name, type, balanceCents, isPrivate, bankId, branchId, accountNumber } = parsed.data;
+  // banco e agência precisam ser da própria família
+  for (const [valor, tabela] of [[bankId, 'banks'], [branchId, 'bank_branches']]) {
+    if (!valor) continue;
+    const existe = await query(`select 1 from ${tabela} where id=$1 and family_id=$2`, [valor, req.auth.familyId]);
+    if (!existe.rows[0]) return res.status(404).json({ error: tabela === 'banks' ? 'Banco não encontrado' : 'Agência não encontrada' });
+  }
+  await query(`insert into accounts (id,family_id,owner_user_id,name,type,balance_cents,is_private,bank_id,branch_id,account_number)
+    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [id, req.auth.familyId, req.auth.sub, name, type, balanceCents, isPrivate, bankId || null, branchId || null, accountNumber || null]);
+  res.status(201).json({ id, name, type, balance_cents: balanceCents, is_private: isPrivate, bank_id: bankId || null, branch_id: branchId || null, account_number: accountNumber || null });
 });
 
 const SEM_CATEGORIA = '__sem_categoria__';
@@ -524,6 +538,302 @@ app.post('/transactions/bulk-delete', requireAuth, allowRoles('admin','adult'), 
     }
   });
   res.json({ deleted: alvo.rows.length, accounts: porConta.size });
+});
+
+/* ---------- cadastros da família: categorias, bancos, agências, parceiros ---------- */
+
+const CATEGORIAS_PADRAO = [
+  ['Alimentação', 'expense', '🍽️', '#9a6500', '#fff5d8'],
+  ['Casa', 'expense', '🏠', '#0b4a8f', '#e8f4ff'],
+  ['Educação', 'expense', '🎓', '#6b21a8', '#f3e8ff'],
+  ['Lazer', 'expense', '🎉', '#9d1a7f', '#ffeafc'],
+  ['Saúde', 'expense', '⚕️', '#9f1239', '#ffeef0'],
+  ['Transporte', 'expense', '🚗', '#3730a3', '#eef2ff'],
+  ['Outros', 'both', '📦', '#08762d', '#ecfff2']
+];
+
+// Toda família começa com as sete categorias de sempre; dali em diante é ela que manda.
+async function garantirCategorias(familyId) {
+  const existentes = await query('select count(*)::int total from categories where family_id=$1', [familyId]);
+  if (existentes.rows[0].total > 0) return;
+  for (const [name, kind, emoji, color, background] of CATEGORIAS_PADRAO) {
+    await query(`insert into categories (family_id,name,kind,emoji,color,background,is_default)
+      values ($1,$2,$3,$4,$5,$6,true) on conflict (family_id,name) do nothing`,
+      [familyId, name, kind, emoji, color, background]);
+  }
+}
+
+const categorySchema = z.object({
+  name: z.string().trim().min(2).max(40),
+  kind: z.enum(['income','expense','both']).default('expense'),
+  emoji: z.string().trim().max(12).nullish(),
+  color: z.string().trim().regex(/^#[0-9a-fA-F]{3,8}$/).nullish(),
+  background: z.string().trim().regex(/^#[0-9a-fA-F]{3,8}$/).nullish()
+});
+
+app.get('/categories', requireAuth, async (req, res) => {
+  await garantirCategorias(req.auth.familyId);
+  const result = await query(`select c.id,c.name,c.kind,c.emoji,c.color,c.background,c.is_default,
+      (select count(*)::int from transactions t where t.family_id=c.family_id and t.category=c.name) usos
+    from categories c where c.family_id=$1 order by c.name`, [req.auth.familyId]);
+  res.json(result.rows);
+});
+
+app.post('/categories', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = categorySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da categoria inválidos' });
+  const { name, kind, emoji, color, background } = parsed.data;
+  try {
+    const criada = await query(`insert into categories (family_id,name,kind,emoji,color,background)
+      values ($1,$2,$3,$4,$5,$6) returning id,name,kind,emoji,color,background,is_default`,
+      [req.auth.familyId, name, kind, emoji || null, color || null, background || null]);
+    res.status(201).json({ ...criada.rows[0], usos: 0 });
+  } catch (erro) {
+    res.status(erro.code === '23505' ? 409 : 500).json({ error: erro.code === '23505' ? 'Já existe uma categoria com esse nome' : 'Não foi possível criar a categoria' });
+  }
+});
+
+// Renomear categoria arrasta os lançamentos: o nome é a ligação entre os dois.
+app.patch('/categories/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Categoria inválida' });
+  const parsed = categorySchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da categoria inválidos' });
+  const atual = await query('select id,name from categories where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!atual.rows[0]) return res.status(404).json({ error: 'Categoria não encontrada' });
+
+  const campos = [], valores = [];
+  const setar = (coluna, valor) => { valores.push(valor); campos.push(`${coluna}=$${valores.length}`); };
+  if (parsed.data.name !== undefined) setar('name', parsed.data.name);
+  if (parsed.data.kind !== undefined) setar('kind', parsed.data.kind);
+  if (parsed.data.emoji !== undefined) setar('emoji', parsed.data.emoji || null);
+  if (parsed.data.color !== undefined) setar('color', parsed.data.color || null);
+  if (parsed.data.background !== undefined) setar('background', parsed.data.background || null);
+  if (!campos.length) return res.json({ id: req.params.id });
+
+  try {
+    await transaction(async client => {
+      valores.push(req.params.id, req.auth.familyId);
+      await client.query(`update categories set ${campos.join(',')} where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+      if (parsed.data.name && parsed.data.name !== atual.rows[0].name) {
+        await client.query('update transactions set category=$1 where family_id=$2 and category=$3',
+          [parsed.data.name, req.auth.familyId, atual.rows[0].name]);
+        await client.query('update partners set category=$1 where family_id=$2 and category=$3',
+          [parsed.data.name, req.auth.familyId, atual.rows[0].name]);
+      }
+    });
+    res.json({ id: req.params.id });
+  } catch (erro) {
+    res.status(erro.code === '23505' ? 409 : 500).json({ error: erro.code === '23505' ? 'Já existe uma categoria com esse nome' : 'Não foi possível alterar a categoria' });
+  }
+});
+
+// Apagar categoria em uso exige dizer para onde vão os lançamentos.
+app.delete('/categories/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Categoria inválida' });
+  const atual = await query('select id,name from categories where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!atual.rows[0]) return res.status(404).json({ error: 'Categoria não encontrada' });
+  const nome = atual.rows[0].name;
+  const usos = await query('select count(*)::int total from transactions where family_id=$1 and category=$2', [req.auth.familyId, nome]);
+  const destino = typeof req.query.reassignTo === 'string' ? req.query.reassignTo.trim() : '';
+
+  if (usos.rows[0].total > 0 && !destino && req.query.reassignTo === undefined) {
+    const quantos = usos.rows[0].total;
+    return res.status(409).json({ error: `${quantos === 1 ? 'Existe 1 lançamento' : `Existem ${quantos} lançamentos`} nesta categoria`, usos: quantos });
+  }
+  if (destino) {
+    const existe = await query('select 1 from categories where family_id=$1 and name=$2', [req.auth.familyId, destino]);
+    if (!existe.rows[0]) return res.status(400).json({ error: 'Categoria de destino não encontrada' });
+  }
+  await transaction(async client => {
+    await client.query('update transactions set category=$1 where family_id=$2 and category=$3', [destino || null, req.auth.familyId, nome]);
+    await client.query('update partners set category=$1 where family_id=$2 and category=$3', [destino || null, req.auth.familyId, nome]);
+    await client.query('delete from categories where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  });
+  res.json({ deleted: 1, movidos: usos.rows[0].total, para: destino || null });
+});
+
+const bankSchema = z.object({ name: z.string().trim().min(2).max(80), code: z.string().trim().max(10).nullish() });
+const branchSchema = z.object({ bankId: z.uuid(), number: z.string().trim().min(1).max(20), name: z.string().trim().max(80).nullish() });
+
+app.get('/banks', requireAuth, async (req, res) => {
+  const bancos = await query('select id,name,code from banks where family_id=$1 order by name', [req.auth.familyId]);
+  const agencias = await query(`select id,bank_id,number,name,
+      (select count(*)::int from accounts a where a.branch_id=bank_branches.id) contas
+    from bank_branches where family_id=$1 order by number`, [req.auth.familyId]);
+  res.json(bancos.rows.map(banco => ({ ...banco, branches: agencias.rows.filter(a => a.bank_id === banco.id) })));
+});
+
+app.post('/banks', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = bankSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do banco inválidos' });
+  try {
+    const criado = await query('insert into banks (family_id,name,code) values ($1,$2,$3) returning id,name,code',
+      [req.auth.familyId, parsed.data.name, parsed.data.code || null]);
+    res.status(201).json({ ...criado.rows[0], branches: [] });
+  } catch (erro) {
+    res.status(erro.code === '23505' ? 409 : 500).json({ error: erro.code === '23505' ? 'Já existe um banco com esse nome' : 'Não foi possível criar o banco' });
+  }
+});
+
+app.patch('/banks/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Banco inválido' });
+  const parsed = bankSchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do banco inválidos' });
+  const campos = [], valores = [];
+  if (parsed.data.name !== undefined) { valores.push(parsed.data.name); campos.push(`name=$${valores.length}`); }
+  if (parsed.data.code !== undefined) { valores.push(parsed.data.code || null); campos.push(`code=$${valores.length}`); }
+  if (!campos.length) return res.json({ id: req.params.id });
+  valores.push(req.params.id, req.auth.familyId);
+  const feito = await query(`update banks set ${campos.join(',')} where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Banco não encontrado' });
+  res.json({ id: req.params.id });
+});
+
+app.delete('/banks/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Banco inválido' });
+  const contas = await query(`select count(*)::int total from accounts where family_id=$1 and bank_id=$2`, [req.auth.familyId, req.params.id]);
+  if (contas.rows[0].total > 0) {
+    const quantas = contas.rows[0].total;
+    return res.status(409).json({ error: `${quantas === 1 ? 'Existe 1 conta' : `Existem ${quantas} contas`} neste banco`, contas: quantas });
+  }
+  const feito = await query('delete from banks where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Banco não encontrado' });
+  res.json({ deleted: 1 });
+});
+
+app.post('/bank-branches', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = branchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da agência inválidos' });
+  const banco = await query('select id from banks where id=$1 and family_id=$2', [parsed.data.bankId, req.auth.familyId]);
+  if (!banco.rows[0]) return res.status(404).json({ error: 'Banco não encontrado' });
+  try {
+    const criada = await query('insert into bank_branches (family_id,bank_id,number,name) values ($1,$2,$3,$4) returning id,bank_id,number,name',
+      [req.auth.familyId, parsed.data.bankId, parsed.data.number, parsed.data.name || null]);
+    res.status(201).json({ ...criada.rows[0], contas: 0 });
+  } catch (erro) {
+    res.status(erro.code === '23505' ? 409 : 500).json({ error: erro.code === '23505' ? 'Este banco já tem uma agência com esse número' : 'Não foi possível criar a agência' });
+  }
+});
+
+app.delete('/bank-branches/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Agência inválida' });
+  const contas = await query('select count(*)::int total from accounts where family_id=$1 and branch_id=$2', [req.auth.familyId, req.params.id]);
+  if (contas.rows[0].total > 0) {
+    const quantas = contas.rows[0].total;
+    return res.status(409).json({ error: `${quantas === 1 ? 'Existe 1 conta' : `Existem ${quantas} contas`} nesta agência`, contas: quantas });
+  }
+  const feito = await query('delete from bank_branches where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Agência não encontrada' });
+  res.json({ deleted: 1 });
+});
+
+const partnerSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  kind: z.enum(['supplier','client','both']).default('supplier'),
+  document: z.string().trim().max(20).nullish(),
+  category: z.string().trim().max(40).nullish(),
+  matchTerms: z.string().trim().max(600).nullish()
+});
+
+app.get('/partners', requireAuth, async (req, res) => {
+  const result = await query(`select p.id,p.name,p.kind,p.document,p.category,p.match_terms,
+      (select count(*)::int from transactions t where t.family_id=p.family_id and t.supplier=p.name) usos
+    from partners p where p.family_id=$1 order by p.name`, [req.auth.familyId]);
+  res.json(result.rows);
+});
+
+app.post('/partners', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  const parsed = partnerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do cadastro inválidos' });
+  const { name, kind, document, category, matchTerms } = parsed.data;
+  try {
+    const criado = await query(`insert into partners (family_id,name,kind,document,category,match_terms)
+      values ($1,$2,$3,$4,$5,$6) returning id,name,kind,document,category,match_terms`,
+      [req.auth.familyId, name, kind, document || null, category || null, matchTerms || null]);
+    res.status(201).json({ ...criado.rows[0], usos: 0 });
+  } catch (erro) {
+    res.status(erro.code === '23505' ? 409 : 500).json({ error: erro.code === '23505' ? 'Já existe um cadastro com esse nome' : 'Não foi possível criar o cadastro' });
+  }
+});
+
+app.patch('/partners/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Cadastro inválido' });
+  const parsed = partnerSchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados do cadastro inválidos' });
+  const atual = await query('select id,name from partners where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!atual.rows[0]) return res.status(404).json({ error: 'Cadastro não encontrado' });
+
+  const campos = [], valores = [];
+  const setar = (coluna, valor) => { valores.push(valor); campos.push(`${coluna}=$${valores.length}`); };
+  if (parsed.data.name !== undefined) setar('name', parsed.data.name);
+  if (parsed.data.kind !== undefined) setar('kind', parsed.data.kind);
+  if (parsed.data.document !== undefined) setar('document', parsed.data.document || null);
+  if (parsed.data.category !== undefined) setar('category', parsed.data.category || null);
+  if (parsed.data.matchTerms !== undefined) setar('match_terms', parsed.data.matchTerms || null);
+  if (!campos.length) return res.json({ id: req.params.id });
+
+  try {
+    await transaction(async client => {
+      valores.push(req.params.id, req.auth.familyId);
+      await client.query(`update partners set ${campos.join(',')} where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+      if (parsed.data.name && parsed.data.name !== atual.rows[0].name) {
+        await client.query('update transactions set supplier=$1 where family_id=$2 and supplier=$3',
+          [parsed.data.name, req.auth.familyId, atual.rows[0].name]);
+      }
+    });
+    res.json({ id: req.params.id });
+  } catch (erro) {
+    res.status(erro.code === '23505' ? 409 : 500).json({ error: erro.code === '23505' ? 'Já existe um cadastro com esse nome' : 'Não foi possível alterar o cadastro' });
+  }
+});
+
+app.delete('/partners/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Cadastro inválido' });
+  const feito = await query('delete from partners where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  if (!feito.rowCount) return res.status(404).json({ error: 'Cadastro não encontrado' });
+  res.json({ deleted: 1 });
+});
+
+// Conta: alterar nome, banco, agência e número; excluir só sem lançamento.
+const accountPatchSchema = z.object({
+  name: z.string().trim().min(2).max(80).optional(),
+  type: z.enum(['checking','savings','cash','investment']).optional(),
+  isPrivate: z.boolean().optional(),
+  bankId: z.uuid().nullish(),
+  branchId: z.uuid().nullish(),
+  accountNumber: z.string().trim().max(30).nullish()
+});
+
+app.patch('/accounts/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Conta inválida' });
+  const parsed = accountPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da conta inválidos' });
+  if (!await contaGravavel(req, req.params.id)) return res.status(404).json({ error: 'Conta não encontrada' });
+
+  const campos = [], valores = [];
+  const setar = (coluna, valor) => { valores.push(valor); campos.push(`${coluna}=$${valores.length}`); };
+  if (parsed.data.name !== undefined) setar('name', parsed.data.name);
+  if (parsed.data.type !== undefined) setar('type', parsed.data.type);
+  if (parsed.data.isPrivate !== undefined) setar('is_private', parsed.data.isPrivate);
+  if (parsed.data.bankId !== undefined) setar('bank_id', parsed.data.bankId || null);
+  if (parsed.data.branchId !== undefined) setar('branch_id', parsed.data.branchId || null);
+  if (parsed.data.accountNumber !== undefined) setar('account_number', parsed.data.accountNumber || null);
+  if (!campos.length) return res.json({ id: req.params.id });
+  valores.push(req.params.id, req.auth.familyId);
+  await query(`update accounts set ${campos.join(',')} where id=$${valores.length - 1} and family_id=$${valores.length}`, valores);
+  res.json({ id: req.params.id });
+});
+
+app.delete('/accounts/:id', requireAuth, allowRoles('admin','adult'), async (req, res) => {
+  if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Conta inválida' });
+  if (!await contaGravavel(req, req.params.id)) return res.status(404).json({ error: 'Conta não encontrada' });
+  const lancamentos = await query('select count(*)::int total from transactions where family_id=$1 and account_id=$2', [req.auth.familyId, req.params.id]);
+  if (lancamentos.rows[0].total > 0) {
+    const quantos = lancamentos.rows[0].total;
+    return res.status(409).json({ error: `Esta conta tem ${quantos === 1 ? '1 lançamento' : `${quantos} lançamentos`} — exclua ou mova os lançamentos primeiro`, lancamentos: quantos });
+  }
+  await query('delete from accounts where id=$1 and family_id=$2', [req.params.id, req.auth.familyId]);
+  res.json({ deleted: 1 });
 });
 
 const cardSchema=z.object({name:z.string().trim().min(2).max(60),brand:z.string().trim().min(2).max(30),lastFour:z.string().regex(/^\d{4}$/),limitCents:z.number().int().positive(),closingDay:z.number().int().min(1).max(31),dueDay:z.number().int().min(1).max(31)});

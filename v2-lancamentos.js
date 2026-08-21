@@ -54,8 +54,22 @@ const lanc = {
   selecao: new Set(),
   carregando: false,
   demo: false,
-  erroCarga: ''
+  erroCarga: '',
+  categorias: []      // vem do cadastro da família; a lista fixa é só reserva
 };
+
+// Nomes das categorias que o usuário cadastrou (ou a lista de reserva).
+const nomesDeCategoria = () => (lanc.categorias.length ? lanc.categorias.map(c => c.name) : CATEGORIAS);
+const categoriaCadastrada = nome => lanc.categorias.find(c => c.name === nome);
+// Chip com a cor que o usuário escolheu no cadastro; sem cadastro, cai nas classes de sempre.
+function chipCategoria(nome) {
+  if (!nome) return '<span class="chip vazio">Sem categoria</span>';
+  const dados = categoriaCadastrada(nome);
+  if (!dados) return `<span class="chip ${semAcento(nome)}">${seguro(nome)}</span>`;
+  return `<span class="chip" style="background:${seguro(dados.background || '#f1eef8')};color:${seguro(dados.color || '#5b5169')}">${dados.emoji ? `${seguro(dados.emoji)} ` : ''}${seguro(nome)}</span>`;
+}
+const opcoesDeCategoria = atual => `<option value="">(sem categoria)</option>` +
+  nomesDeCategoria().map(nome => `<option ${atual === nome ? 'selected' : ''}>${seguro(nome)}</option>`).join('');
 
 /* ---------- dados ---------- */
 
@@ -95,13 +109,19 @@ async function carregarLancamentos() {
     if (window.demoMode || !sessionStorage.getItem('gfp_token')) {
       lanc.demo = true;
       lanc.itens = dadosDemonstracao();
+      // na demonstração usa as sete de sempre, com os mesmos ícones e cores do cadastro
+      if (!lanc.categorias.length && typeof CATEGORIAS_PADRAO_DEMO !== 'undefined') {
+        lanc.categorias = CATEGORIAS_PADRAO_DEMO.map((c, i) => ({ id: `demo-cat-${i}`, ...c, usos: 0 }));
+      }
     } else {
       lanc.demo = false;
       const escopo = document.querySelector('[data-view].selected')?.dataset.view === 'private' ? 'self' : 'family';
-      const [pacote, contas] = await Promise.all([
+      const [pacote, contas, categorias] = await Promise.all([
         request(`/transactions?scope=${escopo}&envelope=1&limit=2000`, { headers: authHeaders(), cache: 'no-store' }),
-        request(`/accounts?scope=${escopo}`, { headers: authHeaders(), cache: 'no-store' })
+        request(`/accounts?scope=${escopo}`, { headers: authHeaders(), cache: 'no-store' }),
+        request('/categories', { headers: authHeaders(), cache: 'no-store' })
       ]);
+      lanc.categorias = categorias || [];
       // a data vem só como AAAA-MM-DD; normalizo por segurança para o filtro por período funcionar
       lanc.itens = (pacote.items || []).map(linha => ({ ...linha, occurred_on: String(linha.occurred_on).slice(0, 10) }));
       lanc.contas = contas || [];
@@ -242,7 +262,7 @@ function desenharTela() {
           </button>
           <span class="lanc-data">${diaMes(linha.occurred_on)}</span>
           <span class="lanc-desc" title="${seguro(linha.description)}">${seguro(linha.description)}${linha.supplier ? `<small>${seguro(linha.supplier)}</small>` : ''}</span>
-          <span class="chip ${linha.category ? semAcento(linha.category) : 'vazio'}">${linha.category ? seguro(linha.category) : 'Sem categoria'}</span>
+          ${chipCategoria(linha.category)}
           <span class="lanc-conta" title="${seguro(linha.account_name || '')}">${seguro(linha.account_name || '—')}</span>
           <span class="lanc-valor ${linha.type === 'income' ? 'entrada' : 'saida'}">${linha.type === 'income' ? '+' : '−'} ${semSinal(linha.amount_cents)}</span>
           <span class="lanc-acoes">
@@ -454,9 +474,7 @@ function abrirEditor(id) {
         <option value="expense" ${linha?.type === 'expense' || !linha ? 'selected' : ''}>Saída (despesa)</option>
         <option value="income" ${linha?.type === 'income' ? 'selected' : ''}>Entrada (receita)</option></select></label>
       <label class="largo">Descrição<input id="lancCampoDescricao" maxlength="140" value="${seguro(linha?.description || '')}" placeholder="Ex.: Mercado do mês — Assaí"></label>
-      <label>Categoria<select id="lancCampoCategoria">
-        <option value="">(Sem categoria)</option>
-        ${CATEGORIAS.map(nome => `<option ${linha?.category === nome ? 'selected' : ''}>${nome}</option>`).join('')}</select></label>
+      <label>Categoria<select id="lancCampoCategoria">${opcoesDeCategoria(linha?.category)}</select></label>
       <label>Conta<select id="lancCampoConta">${contas.map(conta => `<option value="${seguro(conta.id)}" ${linha?.account_id === conta.id ? 'selected' : ''}>${seguro(conta.name)}</option>`).join('')}</select></label>
       <label>Valor (R$)<input id="lancCampoValor" type="number" min="0.01" step="0.01" value="${linha ? (Number(linha.amount_cents) / 100).toFixed(2) : ''}" placeholder="0,00"></label>
       <label>Fornecedor (opcional)<input id="lancCampoFornecedor" maxlength="120" value="${seguro(linha?.supplier || '')}" placeholder="Ex.: Assaí Atacadista"></label>

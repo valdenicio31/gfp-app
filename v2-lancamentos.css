@@ -184,3 +184,45 @@ body:not(.tela-lancamentos) #telaLancamentos{display:none}
 .lanc-falha b{display:block;font-size:14px}
 .lanc-falha small{color:#9a3b3b}
 .lanc-falha button{border:0;background:#b91c1c;color:#fff;border-radius:9px;padding:11px 15px;font:800 13px/1 inherit;cursor:pointer}
+
+/* ---------- tela de cadastros ---------- */
+body.tela-cadastros main>*:not(header):not(#telaCadastros){display:none!important}
+body:not(.tela-cadastros) #telaCadastros{display:none}
+#telaCadastros{display:flex;flex-direction:column;gap:18px;margin-top:22px}
+.cad-abas{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 7px 24px #2113330a;padding:12px 14px}
+.cad-abas button{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;color:var(--text);border-radius:10px;padding:11px 14px;font:800 13px/1 inherit;cursor:pointer}
+.cad-abas button.ativa{border-color:var(--purple);background:#f9f5ff;color:#5b21b6}
+.cad-abas button i{font-style:normal;background:var(--bg);border-radius:99px;padding:2px 7px;font-size:11.5px;color:var(--muted)}
+.cad-abas button.ativa i{background:#ede4ff;color:#5b21b6}
+.cad-abas .cad-novo{margin-left:auto;border:0;background:var(--purple);color:#fff}
+.cad-linha{display:grid;gap:12px;padding:12px 18px;align-items:center;border-bottom:1px solid #f4f1f8}
+.cad-linha:last-child{border-bottom:0}
+.cad-linha.cabecalho{background:#faf8fd;border-bottom:1px solid var(--border);border-radius:16px 16px 0 0;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.cad-linha.contas{grid-template-columns:minmax(150px,1fr) 130px minmax(180px,1.2fr) 150px 140px 70px}
+.cad-linha.parceiros{grid-template-columns:minmax(150px,1fr) 150px 150px 150px minmax(160px,1.2fr) 60px 70px}
+.cad-linha.categorias{grid-template-columns:minmax(150px,1fr) 170px 150px 60px 70px}
+.cad-nome{font-weight:700}
+.cad-sub{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cad-sub em{font-style:normal;color:#b3aabf}
+.cad-sub.num,.num{font-variant-numeric:tabular-nums}
+.cad-termos{font-size:12.5px;color:#5b5169;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cad-termos em{color:#b3aabf}
+.cad-cores{display:flex;align-items:center;gap:6px}
+.cad-cores i{width:20px;height:20px;border-radius:6px;border:1px solid var(--border);display:block}
+.cad-cores small{color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.cad-banco{border-bottom:1px solid var(--border)}
+.cad-banco:last-child{border-bottom:0}
+.cad-banco-topo{display:flex;align-items:center;gap:12px;padding:14px 18px;background:#faf8fd}
+.cad-banco-topo b{font-size:15px}
+.cad-codigo{background:#ede4ff;color:#5b21b6;border-radius:99px;padding:3px 9px;font-size:11.5px;font-weight:700}
+.cad-banco-topo .lanc-acoes{margin-left:auto}
+.cad-agencia{display:flex;align-items:center;gap:12px;padding:11px 18px 11px 34px;border-top:1px solid #f4f1f8;font-size:13.5px}
+.cad-agencia .lanc-acoes{margin-left:auto}
+.cad-agencia.vazia{color:var(--muted);font-style:italic}
+.lanc-caixa .cad-checkbox{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:11px;padding:13px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text)}
+.lanc-caixa .cad-checkbox input{width:18px;height:18px;accent-color:var(--purple)}
+@media(max-width:1180px){
+  .cad-linha.contas{grid-template-columns:minmax(120px,1fr) 100px minmax(140px,1fr) 110px 110px 60px;gap:8px;padding:11px 12px}
+  .cad-linha.parceiros{grid-template-columns:minmax(120px,1fr) 110px 120px 120px minmax(120px,1fr) 50px 60px;gap:8px;padding:11px 12px}
+  .cad-linha.categorias{grid-template-columns:minmax(120px,1fr) 130px 120px 50px 60px;gap:8px;padding:11px 12px}
+}

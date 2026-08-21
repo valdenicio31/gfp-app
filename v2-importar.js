@@ -287,7 +287,7 @@ function desenharPrevia(conferindo = false) {
       <label>Categoria para os marcados
         <select id="impCategoriaLote">
           <option value="">escolher…</option>
-          ${CATEGORIAS.map(nome => `<option>${nome}</option>`).join('')}
+          ${nomesDeCategoria().map(nome => `<option>${seguro(nome)}</option>`).join('')}
           <option value="__limpar__">(sem categoria)</option>
         </select>
       </label>
@@ -307,10 +307,7 @@ function desenharPrevia(conferindo = false) {
           <span class="imp-desc" title="${seguro(linha.descricaoOriginal)}">${seguro(linha.description)}
             ${linha.duplicado ? `<small class="imp-repetido">já existe — ${seguro(linha.motivo || '')}</small>` : ''}</span>
           <span class="imp-forn">${seguro(linha.supplier || '—')}${linha.origem === 'historico' ? '<small>pelo seu histórico</small>' : ''}</span>
-          <select data-categoria="${linha.indice}">
-            <option value="" ${linha.category ? '' : 'selected'}>(sem categoria)</option>
-            ${CATEGORIAS.map(nome => `<option ${linha.category === nome ? 'selected' : ''}>${nome}</option>`).join('')}
-          </select>
+          <select data-categoria="${linha.indice}">${opcoesDeCategoria(linha.category)}</select>
           <span class="lanc-valor ${linha.type === 'income' ? 'entrada' : 'saida'}">${linha.type === 'income' ? '+' : '−'} ${(linha.amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>`).join('')}
       ${imp.linhas.length > visiveis.length ? `<button class="imp-mais" id="impMais">Mostrar mais ${Math.min(300, imp.linhas.length - visiveis.length)} de ${imp.linhas.length - visiveis.length} restantes</button>` : ''}
