@@ -34,7 +34,10 @@ self.addEventListener('fetch', evento => {
   if (url.origin !== self.location.origin) return;            // API e terceiros: direto para a rede
   if (url.search) return;                                     // qualquer coisa com parâmetro não é estático
 
-  const ehPagina = requisicao.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html');
+  // Página, script e estilo vêm da rede primeiro: assim uma publicação nova
+  // aparece na hora, sem o usuário ter que forçar recarregar.
+  const ehCodigo = /\.(html|js|css|webmanifest)$/i.test(url.pathname);
+  const ehPagina = requisicao.mode === 'navigate' || url.pathname === '/' || ehCodigo;
   if (ehPagina) {
     evento.respondWith((async () => {
       try {
