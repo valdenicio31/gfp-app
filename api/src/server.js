@@ -433,7 +433,10 @@ function marcaDeImportacao(familyId, accountId, item) {
 // ou por já haver lançamento igual (mesma data, tipo e valor) naquela conta.
 app.post('/transactions/import-check', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
   const parsed = importCheckSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Dados da conferência inválidos' });
+  if (!parsed.success) {
+    const semConta = !req.body?.accountId;
+    return res.status(400).json({ error: semConta ? 'Escolha a conta que vai receber os lançamentos' : 'Dados da conferência inválidos' });
+  }
   if (!await contaGravavel(req, parsed.data.accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
 
   const marcas = parsed.data.items.map(item => marcaDeImportacao(req.auth.familyId, parsed.data.accountId, item));
@@ -464,7 +467,10 @@ app.post('/transactions/import-check', requireAuth, allowRoles('admin','adult','
 // que a mesma linha venha duas vezes só entra uma.
 app.post('/transactions/import', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
   const parsed = importSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Dados da importação inválidos' });
+  if (!parsed.success) {
+    const semConta = !req.body?.accountId;
+    return res.status(400).json({ error: semConta ? 'Escolha a conta que vai receber os lançamentos' : 'Dados da importação inválidos' });
+  }
   const { accountId, source, items } = parsed.data;
   if (!await contaGravavel(req, accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
 
