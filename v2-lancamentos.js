@@ -41,6 +41,10 @@ const diaMes = iso => `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}`;
 const dataBr = iso => `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}/${String(iso).slice(0, 4)}`;
 const semAcento = texto => String(texto).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const chaveValor = linha => `${linha.type === 'income' ? '+' : '-'}${linha.amount_cents}`;
+// "Failed to fetch" não diz nada para quem está usando: traduz para o que aconteceu.
+const mensagemAmigavel = texto => /failed to fetch|networkerror|load failed/i.test(String(texto || ''))
+  ? 'não consegui falar com o servidor'
+  : String(texto || 'erro desconhecido');
 
 const lanc = {
   itens: [],
@@ -49,7 +53,8 @@ const lanc = {
   ordem: { coluna: 'data', direcao: 'desc' },
   selecao: new Set(),
   carregando: false,
-  demo: false
+  demo: false,
+  erroCarga: ''
 };
 
 /* ---------- dados ---------- */
@@ -84,6 +89,7 @@ function dadosDemonstracao() {
 
 async function carregarLancamentos() {
   lanc.carregando = true;
+  lanc.erroCarga = '';
   desenharTela();
   try {
     if (window.demoMode || !sessionStorage.getItem('gfp_token')) {
@@ -101,6 +107,8 @@ async function carregarLancamentos() {
       lanc.contas = contas || [];
     }
   } catch (erro) {
+    // guarda o motivo para a tela dizer o que houve, em vez de fingir que não há nada
+    lanc.erroCarga = mensagemAmigavel(erro.message);
     lanc.itens = [];
     if (typeof notify === 'function') notify(`🔴 ${erro.message}`);
   }
@@ -192,6 +200,15 @@ function desenharTela() {
       <button id="lancRecarregar">${svg('atualizar')}Atualizar</button>
     </div>
 
+    ${lanc.erroCarga ? `
+      <div class="lanc-falha">
+        <div>${svg('alerta')}<span><b>Não consegui carregar seus lançamentos e contas</b>
+          <small>${seguro(lanc.erroCarga)} — se a instância estava dormindo, a primeira tentativa demora até 50 segundos.</small></span></div>
+        <button id="lancTentarDeNovo">Tentar de novo</button>
+      </div>` : ''}
+
+    ${faixaDeContas()}
+
     <div class="lanc-tags">${etiquetasDeFiltro()}</div>
 
     <div class="lanc-selecao ${marcadas.length ? 'on' : ''}">
@@ -249,6 +266,24 @@ function desenharTela() {
     <div class="lanc-menu" id="lancMenuExcluir" hidden></div>`;
 
   ligarEventos();
+}
+
+// Mostra as contas que o sistema realmente tem, com saldo — é o que responde
+// "cadê minhas contas?" sem precisar abrir outro módulo.
+function faixaDeContas() {
+  if (lanc.erroCarga) return '';
+  const contas = lanc.contas.length
+    ? lanc.contas
+    : [...new Map(lanc.itens.map(t => [t.account_id, { id: t.account_id, name: t.account_name }])).values()];
+  if (!contas.length) {
+    return `<div class="lanc-contas vazia">
+      <span>${svg('alerta', 'ico-s')}Nenhuma conta cadastrada nesta família ainda — os lançamentos precisam de uma conta para entrar.</span>
+      <button id="lancNovaConta">➕ Cadastrar conta</button></div>`;
+  }
+  return `<div class="lanc-contas">
+    <b>${contas.length === 1 ? 'Sua conta' : `Suas ${contas.length} contas`}</b>
+    ${contas.map(conta => `<span class="lanc-conta-chip">${seguro(conta.name)}${conta.balance_cents === undefined ? '' : `<em>${reais(conta.balance_cents)}</em>`}</span>`).join('')}
+    <button id="lancNovaConta">➕ Cadastrar conta</button></div>`;
 }
 
 function etiquetasDeFiltro() {
@@ -609,6 +644,11 @@ function ligarEventos() {
   tela.querySelector('#lancApagarSelecao')?.addEventListener('click', () => {
     const marcadas = linhasFiltradas().filter(linha => lanc.selecao.has(linha.id));
     if (marcadas.length) abrirConfirmacaoExclusao(marcadas, 'a seleção da tela');
+  });
+  tela.querySelector('#lancTentarDeNovo')?.addEventListener('click', carregarLancamentos);
+  tela.querySelector('#lancNovaConta')?.addEventListener('click', () => {
+    if (typeof abrirCriacaoDeConta === 'function') return abrirCriacaoDeConta();
+    notify('🟡 O cadastro de conta não carregou nesta página');
   });
   tela.querySelector('#lancExportar').addEventListener('click', exportarCsv);
   tela.querySelector('#lancRecarregar').addEventListener('click', carregarLancamentos);

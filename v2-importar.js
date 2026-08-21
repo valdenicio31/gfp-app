@@ -52,7 +52,7 @@ async function abrirImportacao() {
     } catch (falha) {
       const fundoErro = abrirCaixa(`
         <div><h3>Não consegui buscar suas contas</h3>
-          <p class="sub">${seguro(falha.message)}. Isso costuma ser a instância gratuita acordando — tente de novo em alguns segundos.</p></div>
+          <p class="sub">${seguro(mensagemAmigavel(falha.message))}. Isso costuma ser a instância gratuita acordando — tente de novo em alguns segundos.</p></div>
         <div class="pe"><button data-fechar="1">Fechar</button><button class="principal" id="impTentarDeNovo">Tentar de novo</button></div>`);
       fundoErro.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
       fundoErro.querySelector('#impTentarDeNovo').addEventListener('click', abrirImportacao);
@@ -238,7 +238,7 @@ async function conferirRepetidos() {
       }
     }
   } catch (falha) {
-    imp.avisos = [...imp.avisos, `Não consegui conferir os repetidos agora (${falha.message}). Confira a lista antes de importar.`];
+    imp.avisos = [...imp.avisos, `Não consegui conferir os repetidos agora (${mensagemAmigavel(falha.message)}). Confira a lista antes de importar.`];
   }
 }
 
