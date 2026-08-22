@@ -1,1 +1,25 @@
-{"name":"GFP - Gestão Financeira Pessoal","short_name":"GFP","start_url":"/","display":"standalone","background_color":"#181220","theme_color":"#5b377c","description":"Gestão financeira pessoal com dashboards, lançamentos e planejamento.","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "GFP Familiar — gestão financeira da família",
+  "short_name": "GFP Familiar",
+  "description": "Lançamentos, importação de extrato, calendário de contas, metas e painéis — para toda a família.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/v2.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f4fb",
+  "theme_color": "#7c3aed",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Lançamentos", "url": "/v2.html#lancamentos", "description": "Ver e incluir lançamentos" },
+    { "name": "Calendário", "url": "/v2.html#calendario", "description": "Contas a pagar e a receber" },
+    { "name": "Ajuda", "url": "/v2.html#ajuda", "description": "Manual de operação" }
+  ]
+}

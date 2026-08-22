@@ -341,7 +341,7 @@ function ligarEventosPainel() {
 /* ---------- entrada na tela ---------- */
 
 function abrirTelaCentral() {
-  document.body.classList.remove('tela-lancamentos', 'tela-cadastros', 'tela-metas', 'tela-calendario');
+  document.body.classList.remove('tela-lancamentos', 'tela-cadastros', 'tela-metas', 'tela-calendario', 'tela-ajuda');
   document.body.classList.add('tela-central');
   document.querySelectorAll('.sidebar nav button').forEach(botao =>
     botao.classList.toggle('active', botao.dataset.tela === 'central'));

@@ -473,7 +473,7 @@ function ligarEventosCalendario() {
 /* ---------- entrada na tela ---------- */
 
 function abrirTelaCalendario() {
-  document.body.classList.remove('tela-lancamentos', 'tela-cadastros', 'tela-metas');
+  document.body.classList.remove('tela-lancamentos', 'tela-cadastros', 'tela-metas', 'tela-ajuda');
   document.body.classList.add('tela-calendario');
   document.querySelectorAll('.sidebar nav button').forEach(botao =>
     botao.classList.toggle('active', botao.dataset.tela === 'calendario'));

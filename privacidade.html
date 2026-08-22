@@ -1,0 +1,118 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Política de Privacidade — GFP Familiar</title>
+<meta name="description" content="Como o GFP Familiar trata os dados pessoais da sua família, conforme a LGPD.">
+<link rel="stylesheet" href="legal.css"><link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head><body>
+<div class="topo"><div class="dentro"><div><span class="via">VIA IA</span><br><b>GFP Familiar</b></div><a href="/v2.html">← Voltar ao sistema</a></div></div>
+<main><div class="cartao">
+
+<h1>Política de Privacidade</h1>
+<p class="data">Versão 1.0 — em vigor a partir de <span class="preencher">[data de publicação]</span></p>
+
+<p>Aqui está, em português claro, o que o GFP Familiar faz com os dados da sua família. Este documento segue a <strong>Lei Geral de Proteção de Dados (Lei 13.709/2018)</strong>.</p>
+
+<div class="caixa"><p><strong>O essencial em quatro frases:</strong> guardamos apenas o que é necessário para o sistema funcionar. Não vendemos dado nenhum. Não usamos seus dados financeiros para publicidade. Você pode exportar tudo e pedir a exclusão a qualquer momento.</p></div>
+
+<h2>1. Quem é o responsável</h2>
+<p><strong>Controlador:</strong> ViaIA Soluções, CNPJ <span class="preencher">[CNPJ]</span>, <span class="preencher">[endereço completo]</span>.</p>
+<p><strong>Encarregado pelo tratamento de dados pessoais (DPO):</strong> <span class="preencher">[nome do encarregado]</span> — <a href="mailto:contato@viaiasolucoes.com">contato@viaiasolucoes.com</a>. É esse o canal para qualquer pedido sobre os seus dados.</p>
+
+<h2>2. Quais dados tratamos</h2>
+<table>
+  <tr><th>Categoria</th><th>O que é</th><th>Por que precisamos</th></tr>
+  <tr>
+    <td><strong>Cadastro</strong></td>
+    <td>Nome, e-mail, senha (guardada de forma irreversível), nome da família, perfil de acesso. Opcionalmente CPF, telefone, data de nascimento, endereço e foto, quando você preenche.</td>
+    <td>Criar sua conta, separar os dados da sua família dos de outras, autenticar o acesso e emitir a nota fiscal.</td>
+  </tr>
+  <tr>
+    <td><strong>Financeiros que você registra</strong></td>
+    <td>Lançamentos (data, descrição, valor, categoria, fornecedor), contas, saldos, cartões, metas, orçamentos, contas previstas.</td>
+    <td>É o próprio serviço: sem esses dados não há o que organizar nem o que somar.</td>
+  </tr>
+  <tr>
+    <td><strong>Extratos importados</strong></td>
+    <td>O conteúdo dos arquivos OFX/CSV que <em>você</em> envia. Guardamos os lançamentos extraídos, não o arquivo original.</td>
+    <td>Transformar o extrato em lançamentos classificados.</td>
+  </tr>
+  <tr>
+    <td><strong>Registros de acesso</strong></td>
+    <td>Data, hora e endereço IP dos acessos ao sistema.</td>
+    <td>Segurança, investigação de acesso indevido e cumprimento do art. 15 do Marco Civil da Internet.</td>
+  </tr>
+  <tr>
+    <td><strong>Pagamento</strong></td>
+    <td>Situação da assinatura e identificador da transação. <strong>Não recebemos nem guardamos o número do seu cartão</strong> — quem processa é o meio de pagamento.</td>
+    <td>Controlar a assinatura, cobrar e emitir nota.</td>
+  </tr>
+</table>
+<p><strong>Não pedimos e não temos</strong> a senha do seu banco, e não nos conectamos às suas contas bancárias. Todo dado financeiro entra por você, digitando ou enviando o arquivo do extrato.</p>
+
+<h2>3. Com que base legal</h2>
+<ul>
+  <li><strong>Execução do contrato</strong> (LGPD, art. 7º, V) — cadastro, dados financeiros que você registra, extratos, controle da assinatura. É a base principal: sem esses dados o serviço não existe.</li>
+  <li><strong>Cumprimento de obrigação legal</strong> (art. 7º, II) — guarda dos registros de acesso por 6 meses (Marco Civil, art. 15) e dados fiscais pelo prazo da legislação tributária.</li>
+  <li><strong>Consentimento</strong> (art. 7º, I) — apenas para comunicações que não são essenciais, como novidades do produto. Você pode retirar esse consentimento quando quiser, sem perder o acesso ao serviço.</li>
+  <li><strong>Legítimo interesse</strong> (art. 7º, IX) — segurança da aplicação e prevenção a fraude, sempre com o mínimo de dado necessário.</li>
+</ul>
+
+<h2>4. Com quem compartilhamos</h2>
+<p>Não vendemos, não alugamos e não cedemos seus dados. Compartilhamos apenas com os prestadores necessários para o serviço funcionar, cada um tratando somente o que precisa:</p>
+<table>
+  <tr><th>Prestador</th><th>Para quê</th><th>Onde fica</th></tr>
+  <tr><td>Hospedagem e banco de dados <span class="preencher">[Render / provedor]</span></td><td>Manter a aplicação e os dados no ar</td><td>Estados Unidos</td></tr>
+  <tr><td>Meio de pagamento <span class="preencher">[gateway]</span></td><td>Processar a assinatura e emitir cobrança</td><td>Brasil</td></tr>
+  <tr><td>Envio de e-mail <span class="preencher">[provedor]</span></td><td>Recuperação de senha e avisos do sistema</td><td><span class="preencher">[país]</span></td></tr>
+</table>
+<p><strong>Transferência internacional:</strong> parte da infraestrutura fica fora do Brasil. Nesses casos exigimos contratualmente proteção equivalente à da LGPD, conforme o art. 33 da lei. Também podemos compartilhar dados por <strong>ordem judicial ou requisição de autoridade competente</strong> — e, quando a lei permitir, avisaremos você.</p>
+
+<h2>5. Como protegemos</h2>
+<ul>
+  <li>Toda comunicação entre o seu navegador e o servidor é criptografada (HTTPS/TLS).</li>
+  <li>Senhas são guardadas com <strong>bcrypt</strong> — um resumo que não volta atrás. Nem nós conseguimos ler a sua senha.</li>
+  <li>Os dados são <strong>isolados por família</strong> em todas as consultas ao banco: não existe caminho pelo qual um usuário alcance dados de outra família.</li>
+  <li>Dentro da família, os perfis limitam o acesso: dependente vê só o que é dele, e conta marcada como privada não aparece nem para o administrador.</li>
+  <li>A sessão expira automaticamente após 8 horas.</li>
+  <li>Cópias de segurança do banco com recuperação a ponto no tempo.</li>
+  <li>Acesso administrativo restrito ao pessoal necessário.</li>
+</ul>
+<p>Se ocorrer incidente de segurança com risco relevante aos seus dados, comunicaremos você e a ANPD nos prazos da lei.</p>
+
+<h2>6. Por quanto tempo guardamos</h2>
+<ul>
+  <li><strong>Enquanto a conta existir:</strong> todos os dados do serviço.</li>
+  <li><strong>Após o cancelamento:</strong> 90 dias, para o caso de você voltar. Depois, exclusão definitiva. Você pode pedir a exclusão imediata.</li>
+  <li><strong>Registros de acesso:</strong> 6 meses (Marco Civil, art. 15).</li>
+  <li><strong>Dados fiscais e de cobrança:</strong> pelo prazo exigido pela legislação tributária.</li>
+</ul>
+
+<h2>7. Seus direitos</h2>
+<p>A LGPD (art. 18) garante a você, a qualquer momento e sem custo:</p>
+<ul>
+  <li>saber se tratamos seus dados e <strong>acessar</strong> os dados que temos;</li>
+  <li><strong>corrigir</strong> dados incompletos, inexatos ou desatualizados;</li>
+  <li>pedir <strong>anonimização, bloqueio ou eliminação</strong> de dados desnecessários ou excessivos;</li>
+  <li><strong>portabilidade</strong> — levar seus dados para outro fornecedor (a exportação em CSV está dentro do sistema);</li>
+  <li><strong>eliminação</strong> dos dados tratados com consentimento;</li>
+  <li>saber com quem compartilhamos;</li>
+  <li><strong>revogar o consentimento</strong> das comunicações não essenciais;</li>
+  <li>ser informado sobre a possibilidade de não consentir e as consequências disso.</li>
+</ul>
+<p>Escreva para <a href="mailto:contato@viaiasolucoes.com">contato@viaiasolucoes.com</a>. Confirmamos o recebimento na hora e <strong>respondemos em até 15 dias</strong>, conforme o art. 19 da LGPD. Você também pode reclamar diretamente à <a href="https://www.gov.br/anpd">ANPD</a>.</p>
+
+<h2>8. Cookies e rastreamento</h2>
+<p>Usamos apenas o <strong>armazenamento necessário para o sistema funcionar</strong>: o token da sua sessão, guardado no navegador e apagado quando você sai. <strong>Não usamos cookies de publicidade, nem pixels de redes sociais, nem rastreadores de terceiros.</strong> Por isso não há banner de cookies pedindo consentimento — não há nada de opcional para consentir.</p>
+
+<h2>9. Crianças e adolescentes</h2>
+<p>O perfil <strong>dependente</strong> existe para incluir filhos na organização financeira da casa. Esse cadastro é feito pelo administrador da família, que declara ser o responsável legal. O tratamento se limita ao necessário para o serviço, no melhor interesse da criança ou adolescente (LGPD, art. 14), e o responsável pode pedir a exclusão desses dados quando quiser.</p>
+
+<h2>10. Decisões automatizadas</h2>
+<p>O sistema classifica lançamentos e gera alertas automaticamente (por exemplo, "esta categoria passou do limite"). São <strong>cálculos sobre os seus próprios dados, sem consequência jurídica nem restrição de direitos</strong> — não fazemos análise de crédito, score nem perfilamento para terceiros. Você pode corrigir qualquer classificação manualmente.</p>
+
+<h2>11. Mudanças nesta Política</h2>
+<p>Se mudarmos algo relevante, avisamos por e-mail e dentro do sistema com pelo menos <strong>30 dias de antecedência</strong>, e atualizamos a data no topo desta página.</p>
+
+</div></main>
+<div class="rodape">ViaIA Soluções · CNPJ <span class="preencher">[CNPJ]</span> · <a href="/termos.html">Termos de Uso</a> · <a href="/v2.html">GFP Familiar</a></div>
+</body></html>

@@ -5,7 +5,7 @@
    2) páginas vêm da rede primeiro, com o cache só como reserva quando está sem internet;
    3) arquivos estáticos vêm do cache e são atualizados por trás. */
 const CACHE = 'gfp-v2';
-const ESSENCIAIS = ['/', '/manifest.webmanifest', '/favicon.svg'];
+const ESSENCIAIS = ['/', '/v2.html', '/manifest.webmanifest', '/favicon.svg', '/icone-192.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', evento => {
   evento.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ESSENCIAIS)).then(() => self.skipWaiting()));
