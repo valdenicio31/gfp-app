@@ -1152,6 +1152,19 @@ function vencimentosDoMes(regra, ano, mes) {
   return datas;
 }
 
+const emReais = cents => (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/* Mês e ano pedidos na URL. Sem parâmetro, o mês de hoje; com parâmetro
+   inválido, null — para a rota avisar em vez de mostrar o mês errado. */
+function mesPedido(req) {
+  const agora = new Date();
+  const ano = req.query.year === undefined || req.query.year === '' ? agora.getFullYear() : Number(req.query.year);
+  const mes = req.query.month === undefined || req.query.month === '' ? agora.getMonth() + 1 : Number(req.query.month);
+  if (!Number.isInteger(ano) || !Number.isInteger(mes)) return null;
+  if (mes < 1 || mes > 12 || ano < 2000 || ano > 2100) return null;
+  return { ano, mes };
+}
+
 async function contaPrevistaDaFamilia(req, id) {
   const resultado = await query('select * from scheduled_bills where id=$1 and family_id=$2', [id, req.auth.familyId]);
   return resultado.rows[0] || null;
@@ -1296,9 +1309,9 @@ app.delete('/scheduled-bills/:id/pay', requireAuth, allowRoles('admin','adult'),
 
 /* O mês inteiro em uma resposta: lançamentos, previsões, faturas e prazos de metas. */
 app.get('/calendar', requireAuth, async (req, res) => {
-  const ano = Number(req.query.year) || new Date().getFullYear();
-  const mes = Number(req.query.month) || new Date().getMonth() + 1;
-  if (mes < 1 || mes > 12 || ano < 2000 || ano > 2100) return res.status(400).json({ error: 'Mês inválido' });
+  const periodo = mesPedido(req);
+  if (!periodo) return res.status(400).json({ error: 'Mês inválido' });
+  const { ano, mes } = periodo;
   const primeiro = montarData(ano, mes, 1);
   const ultimo = montarData(ano, mes, 31);
   const podeVerTudo = req.auth.role === 'admin';
@@ -1356,6 +1369,180 @@ app.get('/calendar', requireAuth, async (req, res) => {
       pago_cents: somar(previstas, p => p.kind === 'payable' && p.pago),
       faturas_cents: faturas.reduce((soma, f) => soma + Number(f.invoice_cents), 0)
     }
+  });
+});
+
+
+/* ---------------- painel da Central, tudo calculado dos lançamentos ---------------- */
+/* Uma resposta só, para a tela não ficar somando nada por conta própria e não
+   existir número inventado: cada valor aqui sai de transactions, da agenda,
+   das metas, do orçamento e da reserva da própria família. */
+
+app.get('/dashboard', requireAuth, async (req, res) => {
+  const periodo = mesPedido(req);
+  if (!periodo) return res.status(400).json({ error: 'Mês inválido' });
+  const { ano, mes } = periodo;
+  const familia = req.auth.familyId, quem = req.auth.sub, ehAdmin = req.auth.role === 'admin';
+  const primeiro = montarData(ano, mes, 1);
+  const ultimo = montarData(ano, mes, 31);
+  const anteriorMes = mes === 1 ? 12 : mes - 1;
+  const anteriorAno = mes === 1 ? ano - 1 : ano;
+  const hoje = new Date().toISOString().slice(0, 10);
+  /* onze meses para trás mais o mês pedido = série de doze */
+  const inicioSerie = montarData(mes === 12 ? ano : ano - 1, mes === 12 ? 1 : mes + 1, 1);
+  const visivel = '(a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))';
+
+  const [contas, doMes, doMesAnterior, serieMeses, serieAnos, porCategoria, porFornecedor,
+    regras, baixas, orcamento, metas, reservas, cartoes] = await Promise.all([
+    query(`select a.id, a.name, a.type, a.balance_cents, b.name banco
+      from accounts a left join banks b on b.id=a.bank_id
+      where a.family_id=$1 and ${visivel} order by a.name`, [familia, quem, ehAdmin]),
+    query(`select t.type, sum(t.amount_cents)::bigint total, count(*)::int quantos
+      from transactions t join accounts a on a.id=t.account_id
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5 group by t.type`,
+      [familia, quem, ehAdmin, primeiro, ultimo]),
+    query(`select t.type, sum(t.amount_cents)::bigint total
+      from transactions t join accounts a on a.id=t.account_id
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5 group by t.type`,
+      [familia, quem, ehAdmin, montarData(anteriorAno, anteriorMes, 1), montarData(anteriorAno, anteriorMes, 31)]),
+    query(`select to_char(t.occurred_on,'YYYY-MM') ym,
+        coalesce(sum(case when t.type='income' then t.amount_cents end),0)::bigint receitas_cents,
+        coalesce(sum(case when t.type='expense' then t.amount_cents end),0)::bigint despesas_cents
+      from transactions t join accounts a on a.id=t.account_id
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5
+      group by 1 order by 1`, [familia, quem, ehAdmin, inicioSerie, ultimo]),
+    query(`select extract(year from t.occurred_on)::int ano,
+        coalesce(sum(case when t.type='income' then t.amount_cents end),0)::bigint receitas_cents,
+        coalesce(sum(case when t.type='expense' then t.amount_cents end),0)::bigint despesas_cents
+      from transactions t join accounts a on a.id=t.account_id
+      where t.family_id=$1 and ${visivel} group by 1 order by 1 desc limit 5`, [familia, quem, ehAdmin]),
+    query(`select coalesce(t.category,'(sem categoria)') category, t.type,
+        sum(t.amount_cents)::bigint total_cents, count(*)::int quantos
+      from transactions t join accounts a on a.id=t.account_id
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5
+      group by 1,2 order by 3 desc`, [familia, quem, ehAdmin, primeiro, ultimo]),
+    query(`select t.supplier, sum(t.amount_cents)::bigint total_cents, count(*)::int quantos
+      from transactions t join accounts a on a.id=t.account_id
+      where t.family_id=$1 and ${visivel} and t.type='expense' and t.supplier is not null
+        and t.occurred_on between $4 and $5
+      group by 1 order by 2 desc limit 12`, [familia, quem, ehAdmin, primeiro, ultimo]),
+    query(`select * , to_char(first_due_on,'YYYY-MM-DD') first_due_on, to_char(ends_on,'YYYY-MM-DD') ends_on
+      from scheduled_bills where family_id=$1 and is_active=true`, [familia]),
+    query(`select bill_id, to_char(due_on,'YYYY-MM-DD') due_on from scheduled_bill_payments
+      where family_id=$1 and due_on between $2 and $3`, [familia, primeiro, ultimo]),
+    query(`select b.id, b.category, b.limit_cents,
+        coalesce((select sum(t.amount_cents) from transactions t join accounts a on a.id=t.account_id
+          where t.family_id=b.family_id and t.type='expense' and t.category=b.category
+            and extract(month from t.occurred_on)=b.period_month and extract(year from t.occurred_on)=b.period_year
+            and (a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))),0)::bigint realizado_cents
+      from budgets b where b.family_id=$1 and b.is_active=true and b.period_month=$4 and b.period_year=$5
+      order by b.category`, [familia, quem, ehAdmin, mes, ano]),
+    query(`select id, title, emoji, target_cents, current_cents, status, to_char(deadline,'YYYY-MM-DD') deadline
+      from goals where family_id=$1 order by status, deadline nulls last`, [familia]),
+    query('select id, name, target_cents, current_cents, monthly_target_cents from reserves where family_id=$1 and is_active=true', [familia]),
+    query(`select c.id, c.name, c.last_four, c.limit_cents, c.due_day,
+        coalesce((select sum(ceil(p.amount_cents::numeric/p.installments)) from card_purchases p where p.card_id=c.id),0)::bigint invoice_cents
+      from credit_cards c where c.family_id=$1 and ($2::boolean=true or c.owner_user_id=$3) order by c.name`,
+      [familia, ehAdmin, quem])
+  ]);
+
+  const somaDe = (linhas, tipo) => Number(linhas.find(l => l.type === tipo)?.total || 0);
+  const receitas = somaDe(doMes.rows, 'income'), despesas = somaDe(doMes.rows, 'expense');
+  const receitasAntes = somaDe(doMesAnterior.rows, 'income'), despesasAntes = somaDe(doMesAnterior.rows, 'expense');
+
+  /* a série sai do banco só com os meses que têm movimento — completo os vazios */
+  const porMes = new Map(serieMeses.rows.map(l => [l.ym, l]));
+  const serie = [];
+  for (let i = 11; i >= 0; i -= 1) {
+    const data = new Date(Date.UTC(ano, mes - 1 - i, 1));
+    const ym = `${data.getUTCFullYear()}-${String(data.getUTCMonth() + 1).padStart(2, '0')}`;
+    const linha = porMes.get(ym);
+    serie.push({
+      ym, mes: data.getUTCMonth() + 1, ano: data.getUTCFullYear(),
+      receitas_cents: Number(linha?.receitas_cents || 0),
+      despesas_cents: Number(linha?.despesas_cents || 0)
+    });
+  }
+
+  /* vencimentos do mês, expandindo a recorrência da agenda */
+  const pagos = new Set(baixas.rows.map(l => `${l.bill_id}|${l.due_on}`));
+  const previstas = [];
+  for (const regra of regras.rows) {
+    for (const vencimento of vencimentosDoMes(regra, ano, mes)) {
+      previstas.push({
+        id: regra.id, due_on: vencimento, kind: regra.kind, description: regra.description,
+        amount_cents: Number(regra.amount_cents), category: regra.category,
+        pago: pagos.has(`${regra.id}|${vencimento}`)
+      });
+    }
+  }
+  const aPagar = previstas.filter(p => p.kind === 'payable' && !p.pago);
+  const aReceber = previstas.filter(p => p.kind === 'receivable' && !p.pago);
+  const atrasadas = previstas.filter(p => !p.pago && p.due_on < hoje);
+  const proximas = previstas.filter(p => !p.pago && p.due_on >= hoje && p.due_on <= new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10));
+
+  const soma = (lista, campo = 'amount_cents') => lista.reduce((total, item) => total + Number(item[campo]), 0);
+  const saldoTotal = contas.rows.reduce((total, conta) => total + Number(conta.balance_cents), 0);
+  const metasAtivas = metas.rows.filter(m => m.status === 'active');
+  const reserva = reservas.rows[0] || null;
+
+  /* alertas de verdade: cada um aponta para um número que existe */
+  const alertas = [];
+  if (atrasadas.length) {
+    alertas.push({ nivel: 'ruim', titulo: atrasadas.length === 1 ? '1 conta venceu e não foi baixada' : `${atrasadas.length} contas venceram e não foram baixadas`,
+      detalhe: atrasadas.slice(0, 3).map(p => `${p.description} (${p.due_on.slice(8, 10)}/${p.due_on.slice(5, 7)})`).join(' · '), onde: 'calendario' });
+  }
+  for (const conta of contas.rows.filter(c => Number(c.balance_cents) < 0)) {
+    alertas.push({ nivel: 'ruim', titulo: `${conta.name} está negativa`, detalhe: `Saldo de ${emReais(conta.balance_cents)}`, onde: 'lancamentos' });
+  }
+  for (const limite of orcamento.rows) {
+    const uso = Number(limite.limit_cents) ? Math.round((Number(limite.realizado_cents) / Number(limite.limit_cents)) * 100) : 0;
+    if (uso >= 100) alertas.push({ nivel: 'ruim', titulo: `${limite.category} passou do limite do mês`, detalhe: `${uso}% do planejado já foi gasto`, onde: 'metas' });
+    else if (uso >= 85) alertas.push({ nivel: 'atencao', titulo: `${limite.category} está perto do limite`, detalhe: `${uso}% do planejado`, onde: 'metas' });
+  }
+  if (proximas.length) {
+    alertas.push({ nivel: 'atencao', titulo: proximas.length === 1 ? '1 conta vence nos próximos dias' : `${proximas.length} contas vencem nos próximos dias`,
+      detalhe: proximas.slice(0, 3).map(p => `${p.description} (${p.due_on.slice(8, 10)}/${p.due_on.slice(5, 7)})`).join(' · '), onde: 'calendario' });
+  }
+  for (const cartao of cartoes.rows.filter(c => Number(c.invoice_cents) > Number(c.limit_cents) * 0.8)) {
+    alertas.push({ nivel: 'atencao', titulo: `Fatura do ${cartao.name} alta`, detalhe: `${Math.round((Number(cartao.invoice_cents) / Number(cartao.limit_cents)) * 100)}% do limite comprometido`, onde: 'cartoes' });
+  }
+  for (const meta of metasAtivas.filter(m => m.deadline && m.deadline >= hoje && m.deadline <= new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10))) {
+    const uso = Math.round((Number(meta.current_cents) / Number(meta.target_cents)) * 100);
+    if (uso < 80) alertas.push({ nivel: 'atencao', titulo: `A meta ${meta.title} vence em breve`, detalhe: `${uso}% juntado até agora`, onde: 'metas' });
+  }
+  if (despesas > receitas && receitas > 0) {
+    alertas.push({ nivel: 'atencao', titulo: 'As saídas passaram as entradas neste mês', detalhe: `Diferença de ${emReais(despesas - receitas)}`, onde: 'lancamentos' });
+  }
+  if (!reserva) alertas.push({ nivel: 'info', titulo: 'A família ainda não tem reserva de emergência', detalhe: 'A recomendação comum é de três a seis meses de despesa', onde: 'metas' });
+  if (!alertas.length) alertas.push({ nivel: 'bom', titulo: 'Nada pedindo atenção agora', detalhe: 'Contas em dia, orçamento respeitado e saldos positivos' });
+
+  res.json({
+    hoje, year: ano, month: mes,
+    contas: contas.rows, saldo_total_cents: saldoTotal,
+    mes: { receitas_cents: receitas, despesas_cents: despesas, resultado_cents: receitas - despesas, quantos: doMes.rows.reduce((t, l) => t + l.quantos, 0) },
+    mes_anterior: { receitas_cents: receitasAntes, despesas_cents: despesasAntes, resultado_cents: receitasAntes - despesasAntes },
+    serie_meses: serie,
+    serie_anos: serieAnos.rows.map(l => ({ ano: l.ano, receitas_cents: Number(l.receitas_cents), despesas_cents: Number(l.despesas_cents) })).reverse(),
+    por_categoria: porCategoria.rows.map(l => ({ ...l, total_cents: Number(l.total_cents) })),
+    por_fornecedor: porFornecedor.rows.map(l => ({ ...l, total_cents: Number(l.total_cents) })),
+    agenda: {
+      a_pagar_cents: soma(aPagar), a_receber_cents: soma(aReceber),
+      pago_cents: soma(previstas.filter(p => p.kind === 'payable' && p.pago)),
+      atrasadas: atrasadas.slice(0, 8), proximas: proximas.slice(0, 8),
+      quantas_atrasadas: atrasadas.length
+    },
+    orcamento: orcamento.rows.map(l => ({ ...l, limit_cents: Number(l.limit_cents), realizado_cents: Number(l.realizado_cents) })),
+    metas: {
+      quantas: metas.rows.length, ativas: metasAtivas.length,
+      concluidas: metas.rows.filter(m => m.status === 'completed').length,
+      guardado_cents: metas.rows.reduce((t, m) => t + Number(m.current_cents), 0),
+      objetivo_cents: metas.rows.reduce((t, m) => t + Number(m.target_cents), 0),
+      proximas: metasAtivas.slice(0, 4)
+    },
+    reserva: reserva ? { ...reserva, current_cents: Number(reserva.current_cents), target_cents: Number(reserva.target_cents) } : null,
+    cartoes: cartoes.rows.map(c => ({ ...c, invoice_cents: Number(c.invoice_cents), limit_cents: Number(c.limit_cents) })),
+    alertas
   });
 });
 

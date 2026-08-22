@@ -37,6 +37,7 @@ async function loadRealProfile(token){
   window.demoMode=false;enter(profile.role);window.demoMode=false;
   roleSelect.disabled=true;
   const isAdmin=profile.role==='admin';document.querySelector('[data-view="family"]').hidden=!isAdmin;document.querySelector('[data-view="private"]').classList.toggle('selected',!isAdmin);document.querySelectorAll('[data-module="users"],[data-module="profiles"]').forEach(button=>button.disabled=!isAdmin);document.querySelectorAll('[data-open-module]').forEach(button=>button.disabled=!isAdmin);await loadFinance(isAdmin?'family':'self');if(isAdmin)await loadFamilyAdmin();
+  if(typeof window.recarregarPainel==='function')window.recarregarPainel();
   notify(`Bem-vindo à família ${profile.family_name} 💜`);
 }
 
