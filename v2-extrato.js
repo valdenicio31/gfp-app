@@ -248,11 +248,122 @@ function lerDelimitado(texto) {
   return { linhas: resultado, avisos, delimitador };
 }
 
+
+// ---------- PDF ----------
+// O PDF já chega como texto (v2-pdf.js resolve a página em linhas). Aqui só
+// resta o que também vale para papel: achar a data no começo da linha, o valor
+// no fim e a descrição no meio.
+
+// Só conta como dinheiro o que tem centavos: assim "PARC 03/10" e "AG 1234"
+// não viram valor por engano.
+const VALOR_NO_TEXTO = /-?\s*R?\$?\s*\d{1,3}(?:\.\d{3})+,\d{2}|-?\s*R?\$?\s*\d+,\d{2}/g;
+const DATA_NA_FRENTE = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?\s+/;
+// Linha de fechamento, não de movimento. "Pagamento" sozinho não entra aqui:
+// "Pagamento de fatura" é lançamento de verdade e sumiria do extrato.
+const LINHA_DE_TOTAL = /^(saldos?|totais|total|subtotal|limite|(lan[çc]amentos?|pagamentos?|cr[ée]ditos?|d[ée]bitos?) (do per[íi]odo|efetuados|realizados))\b/i;
+
+// Nem todo PDF marca a saída com sinal: muitos escrevem "Despesa", "Débito" ou
+// "enviada". Sem ler essas palavras, um extrato inteiro entraria como receita.
+const PALAVRAS_DE_SAIDA = /\b(despesas?|d[ée]bitos?|sa[íi]das?|pagamentos?|pagto|compras?|enviad[ao]s?|transfer[êe]ncia enviada|saques?|tarifas?|taxas?|anuidade|juros|iof|parcelas?)\b/i;
+const PALAVRAS_DE_ENTRADA = /\b(receitas?|cr[ée]ditos?|entradas?|recebid[ao]s?|transfer[êe]ncia recebida|dep[óo]sitos?|sal[áa]rios?|rendimentos?|estornos?|reembolsos?|devolu[çc][ãa]o)\b/i;
+
+// Devolve -1 para saída, 1 para entrada e 0 quando a linha não diz.
+function sinalPelaPalavra(linha) {
+  const entrada = PALAVRAS_DE_ENTRADA.test(linha);
+  const saida = PALAVRAS_DE_SAIDA.test(linha);
+  if (entrada && !saida) return 1;
+  if (saida && !entrada) return -1;
+  if (entrada && saida) {
+    // "Transferência enviada" e "recebida" podem coexistir na mesma linha:
+    // vale a que aparece primeiro, que é a do lançamento.
+    return linha.search(PALAVRAS_DE_ENTRADA) < linha.search(PALAVRAS_DE_SAIDA) ? 1 : -1;
+  }
+  return 0;
+}
+
+// Extratos trazem "05/08" sem o ano; o ano está no cabeçalho do documento.
+function anoDeReferencia(linhas) {
+  for (const linha of linhas.slice(0, 40)) {
+    const m = String(linha).match(/\b(20\d{2})\b/);
+    if (m) return Number(m[1]);
+  }
+  return new Date().getFullYear();
+}
+
+function lerPdf(texto) {
+  const linhas = String(texto || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (!linhas.length) return { linhas: [], avisos: ['O PDF não tem texto legível.'] };
+
+  const ano = anoDeReferencia(linhas);
+  const resultado = [], avisos = [];
+  let semData = 0, comSaldo = 0, porPalavra = 0;
+
+  for (const linha of linhas) {
+    const data = linha.match(DATA_NA_FRENTE);
+    if (!data) { semData++; continue; }
+    if (LINHA_DE_TOTAL.test(linha.replace(DATA_NA_FRENTE, ''))) continue;
+
+    const iso = paraDataIso(data[3]
+      ? `${data[1]}/${data[2]}/${data[3]}`
+      : `${data[1]}/${data[2]}/${ano}`);
+    if (!iso) { semData++; continue; }
+
+    const corpo = linha.slice(data[0].length);
+    const valores = corpo.match(VALOR_NO_TEXTO);
+    if (!valores || !valores.length) { semData++; continue; }
+
+    // Duas colunas de dinheiro na linha significam lançamento e saldo do dia:
+    // o saldo é o último e não é movimento nenhum.
+    const bruto = valores[0];
+    if (valores.length > 1) comSaldo++;
+
+    const centavos = paraCentavos(bruto);
+    if (centavos === null || centavos === 0) { semData++; continue; }
+
+    // O sinal do número manda; sem sinal, quem decide é a palavra da linha.
+    let saida = centavos < 0;
+    if (centavos > 0 && !/^\s*-/.test(bruto)) {
+      const pelaPalavra = sinalPelaPalavra(corpo);
+      if (pelaPalavra) { saida = pelaPalavra < 0; porPalavra++; }
+    }
+
+    const descricao = corpo.slice(0, corpo.indexOf(bruto)).trim() || corpo.replace(VALOR_NO_TEXTO, '').trim();
+    resultado.push({
+      occurredOn: iso,
+      description: limparDescricao(descricao) || 'Lançamento importado',
+      descricaoOriginal: descricao,
+      amountCents: Math.abs(centavos),
+      type: saida ? 'expense' : 'income',
+      identificador: ''
+    });
+  }
+
+  if (!resultado.length) {
+    avisos.push('Não achei lançamentos no PDF. Confira se é o extrato e não o comprovante, '
+      + 'ou exporte em OFX/CSV pelo aplicativo do banco.');
+  }
+  if (semData) {
+    avisos.push(`${semData} ${semData === 1 ? 'linha ignorada' : 'linhas ignoradas'} (cabeçalho, rodapé ou linha sem data e valor).`);
+  }
+  if (comSaldo) {
+    avisos.push('O extrato traz a coluna de saldo: usei o primeiro valor de cada linha como o lançamento. Confira na prévia.');
+  }
+  if (porPalavra) {
+    avisos.push(`${porPalavra} ${porPalavra === 1 ? 'lançamento veio' : 'lançamentos vieram'} sem sinal no valor: `
+      + 'entrada ou saída foi deduzida das palavras da linha (despesa, recebida, pagamento…). Confira na prévia.');
+  }
+  avisos.push('Leitura de PDF é sempre uma interpretação do documento — confira os valores antes de importar.');
+  return { linhas: resultado, avisos };
+}
+
 // ---------- porta de entrada ----------
 function lerExtrato(texto, nomeArquivo = '') {
   const conteudo = String(texto || '').replace(/^﻿/, '');
-  const pareceOfx = /<STMTTRN>/i.test(conteudo) || /<OFX>/i.test(conteudo) || /\.ofx$/i.test(nomeArquivo);
-  const resultado = pareceOfx
+  const parecePdf = /\.pdf$/i.test(nomeArquivo);
+  const pareceOfx = !parecePdf && (/<STMTTRN>/i.test(conteudo) || /<OFX>/i.test(conteudo) || /\.ofx$/i.test(nomeArquivo));
+  const resultado = parecePdf
+    ? { formato: 'PDF', ...lerPdf(conteudo) }
+    : pareceOfx
     ? { formato: 'OFX', linhas: lerOfx(conteudo), avisos: [] }
     : { formato: 'Planilha/CSV', ...lerDelimitado(conteudo) };
   resultado.avisos = resultado.avisos || [];
@@ -266,6 +377,6 @@ function lerExtrato(texto, nomeArquivo = '') {
   return resultado;
 }
 
-const GFPExtrato = { lerExtrato, lerOfx, lerDelimitado, paraDataIso, paraCentavos, limparDescricao, separarLinha, descobrirDelimitador };
+const GFPExtrato = { lerExtrato, lerOfx, lerDelimitado, lerPdf, paraDataIso, paraCentavos, limparDescricao, separarLinha, descobrirDelimitador };
 if (typeof window !== 'undefined') window.GFPExtrato = GFPExtrato;
 if (typeof module !== 'undefined' && module.exports) module.exports = GFPExtrato;

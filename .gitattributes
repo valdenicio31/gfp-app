@@ -1,0 +1,4 @@
+# Biblioteca de terceiros: guarda os bytes exatamente como vieram do fornecedor.
+# Sem isso o Git converte as quebras de linha, muda o arquivo minificado e
+# polui o diff de uma dependência que ninguém edita à mão.
+assets/vendor/** -text

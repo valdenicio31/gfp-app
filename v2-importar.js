@@ -9,7 +9,38 @@ const imp = {
   parceiros: []        // cadastro de fornecedores e clientes, que manda na classificação
 };
 
-const TIPOS_ACEITOS = '.ofx,.csv,.txt,.tsv,.qfx,text/csv,text/plain';
+const TIPOS_ACEITOS = '.ofx,.csv,.txt,.tsv,.qfx,.pdf,text/csv,text/plain,application/pdf';
+
+const ehPdf = arquivo => /\.pdf$/i.test(arquivo?.name || '') || arquivo?.type === 'application/pdf';
+
+// A senha do extrato fica só aqui, na memória da aba: não vai para o servidor,
+// não é gravada e some quando a importação termina.
+function pedirSenhaDoPdf({ errada }) {
+  return new Promise(resolve => {
+    const fundo = abrirCaixa(`
+      <div><h3>Este extrato está protegido por senha</h3>
+        <p class="sub">${errada
+          ? 'A senha não abriu o arquivo. Tente de novo.'
+          : 'Bancos como o Itaú protegem o PDF. Digite a senha que o banco pede para abrir o documento.'}</p></div>
+      <div class="campos">
+        <label class="largo">Senha do PDF
+          <input id="impSenhaPdf" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </label>
+      </div>
+      <p class="sub">🔒 A senha é usada só para abrir o arquivo neste navegador. Ela não é enviada nem guardada.</p>
+      <div class="pe">
+        <button data-fechar="1">Cancelar</button>
+        <button class="principal" id="impAbrirPdf">Abrir extrato</button>
+      </div>`);
+
+    const campo = fundo.querySelector('#impSenhaPdf');
+    const confirmar = () => resolve(campo.value);
+    fundo.querySelector('[data-fechar]').addEventListener('click', () => resolve(null));
+    fundo.querySelector('#impAbrirPdf').addEventListener('click', confirmar);
+    campo.addEventListener('keydown', evento => { if (evento.key === 'Enter') confirmar(); });
+    campo.focus();
+  });
+}
 
 async function textoDoArquivo(arquivo) {
   const bytes = await arquivo.arrayBuffer();
@@ -69,11 +100,11 @@ async function abrirImportacao() {
 
   const fundo = abrirCaixa(`
     <div><h3>Importar extrato de qualquer banco</h3>
-      <p class="sub">Serve o arquivo que o seu banco exporta: OFX, CSV, TXT ou planilha salva como CSV.</p></div>
+      <p class="sub">Serve o arquivo que o seu banco exporta: OFX, CSV, TXT, planilha salva como CSV — ou o extrato em PDF.</p></div>
     <label class="imp-solta" for="impArquivo">
       ${svg('entra')}
       <b>Escolher o arquivo do extrato</b>
-      <small>Nubank, Inter, Itaú, Mercado Pago, PagBank e qualquer outro — eu descubro o formato sozinho</small>
+      <small>Nubank, Inter, Itaú, Mercado Pago, PagBank e qualquer outro — eu descubro o formato sozinho. PDF protegido por senha também serve.</small>
       <input id="impArquivo" type="file" accept="${TIPOS_ACEITOS}" hidden>
     </label>
     <div class="campos">
@@ -194,7 +225,11 @@ async function prepararPrevia(arquivo) {
   if (palpite) imp.contaId = palpite;
   let lido;
   try {
-    lido = GFPExtrato.lerExtrato(await textoDoArquivo(arquivo), arquivo.name);
+    // O PDF passa antes pelo leitor de página; o resto do caminho é o mesmo.
+    const texto = ehPdf(arquivo)
+      ? (await GFPPdf.extrairTexto(arquivo, pedirSenhaDoPdf)).texto
+      : await textoDoArquivo(arquivo);
+    lido = GFPExtrato.lerExtrato(texto, arquivo.name);
   } catch (falha) {
     imp.erro = `Não consegui ler o arquivo: ${falha.message}`;
     return desenharPrevia();
