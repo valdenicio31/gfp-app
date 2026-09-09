@@ -305,6 +305,33 @@ function origemDaLinha(linha) {
   return '';
 }
 
+// Ler PDF é interpretar um documento, e interpretação erra. O CSV devolve o
+// controle: confira na planilha, corrija o que saiu torto e importe de volta —
+// o arquivo gerado é lido pelo mesmo caminho do CSV de banco.
+function baixarPreviaComoCsv() {
+  const cabecalho = ['Data', 'Descrição', 'Fornecedor', 'Categoria', 'Valor'];
+  const corpo = imp.linhas.map(linha => [
+    dataBr(linha.occurredOn),
+    linha.descricaoOriginal || linha.description,
+    linha.supplier || '',
+    linha.category || '',
+    // O sinal carrega entrada e saída: é o que a releitura entende sem depender
+    // de uma coluna de tipo.
+    `${linha.type === 'expense' ? '-' : ''}${(linha.amountCents / 100).toFixed(2).replace('.', ',')}`
+  ]);
+  const csv = [cabecalho, ...corpo]
+    .map(colunas => colunas.map(valor => `"${String(valor).replace(/"/g, '""')}"`).join(';'))
+    .join('\r\n');
+
+  const base = (imp.nomeArquivo || 'extrato').replace(/\.[^.]+$/, '');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = `${base}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  notify(`🟢 ${imp.linhas.length} ${imp.linhas.length === 1 ? 'linha exportada' : 'linhas exportadas'} para CSV`);
+}
+
 function desenharPrevia(conferindo = false) {
   const marcadas = imp.linhas.filter(linha => imp.marcadas.has(linha.indice));
   const entradas = marcadas.filter(l => l.type === 'income').reduce((s, l) => s + l.amountCents, 0);
@@ -355,6 +382,7 @@ function desenharPrevia(conferindo = false) {
         </select>
       </label>
       ${semCategoria ? `<button class="imp-classificar" id="impClassificar">${svg('funil', 'ico-s')}Classificar os ${semCategoria} que faltam</button>` : ''}
+      <button id="impBaixarCsv" title="Baixa o que foi lido como planilha. Serve para conferir no Excel, corrigir o que a leitura errou e importar de volta o arquivo corrigido.">${svg('sai', 'ico-s')}Baixar como CSV</button>
       ${imp.todosPositivos ? '<label class="imp-cartao"><input type="checkbox" id="impTudoSaida" checked>É fatura de cartão: tudo como saída</label>' : ''}
     </div>
 
@@ -428,6 +456,7 @@ function desenharPrevia(conferindo = false) {
     desenharPrevia();
   });
   fundo.querySelector('#impClassificar')?.addEventListener('click', () => classificarPendentes(0));
+  fundo.querySelector('#impBaixarCsv')?.addEventListener('click', baixarPreviaComoCsv);
   fundo.querySelector('#impConverter').addEventListener('click', converterEmLancamentos);
 
   // fatura de cartão começa com tudo como saída
