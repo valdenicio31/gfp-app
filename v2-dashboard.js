@@ -2,7 +2,10 @@
    das metas e do orçamento da própria família. Nada aqui é fixo — quando entra
    uma movimentação, a tela recarrega e os painéis mudam junto. */
 
-const pnl = { dados: null, mes: new Date().getMonth() + 1, ano: new Date().getFullYear(), carregando: false, erro: '', demo: false };
+const pnl = { dados: null, mes: new Date().getMonth() + 1, ano: new Date().getFullYear(),
+  // O gráfico mês a mês tem ano próprio: dá para olhar 2025 inteiro sem
+  // tirar o resto do painel do mês corrente.
+  serieAno: new Date().getFullYear(), carregando: false, erro: '', demo: false };
 
 const NIVEIS = { ruim: '🔴', atencao: '🟡', bom: '🟢', info: '🔵' };
 
@@ -10,10 +13,12 @@ function painelDemonstracao() {
   const serie = [];
   const base = [[820, 610], [790, 705], [880, 640], [830, 690], [910, 720], [860, 655],
     [900, 780], [940, 700], [880, 745], [950, 690], [1020, 810], [980, 715]];
-  for (let i = 11; i >= 0; i -= 1) {
-    const data = new Date(pnl.ano, pnl.mes - 1 - i, 1);
-    const [entra, sai] = base[11 - i];
-    serie.push({ ym: `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`, mes: data.getMonth() + 1, ano: data.getFullYear(), receitas_cents: entra * 1000, despesas_cents: sai * 1000 });
+  for (let m = 1; m <= 12; m += 1) {
+    const [entra, sai] = base[m - 1];
+    // No ano corrente os meses que ainda não chegaram ficam zerados, como na base real.
+    const futuro = pnl.serieAno === pnl.ano && m > pnl.mes;
+    serie.push({ ym: `${pnl.serieAno}-${String(m).padStart(2, '0')}`, mes: m, ano: pnl.serieAno,
+      receitas_cents: futuro ? 0 : entra * 1000, despesas_cents: futuro ? 0 : sai * 1000 });
   }
   pnl.dados = {
     hoje: new Date().toLocaleDateString('sv-SE'), year: pnl.ano, month: pnl.mes,
@@ -23,6 +28,7 @@ function painelDemonstracao() {
     saldo_total_cents: 1213000,
     mes: { receitas_cents: 980000, despesas_cents: 715000, resultado_cents: 265000, quantos: 34 },
     mes_anterior: { receitas_cents: 1020000, despesas_cents: 810000, resultado_cents: 210000 },
+    serie_ano: pnl.serieAno,
     serie_meses: serie,
     serie_anos: [{ ano: pnl.ano - 1, receitas_cents: 10800000, despesas_cents: 8400000 },
       { ano: pnl.ano, receitas_cents: 7600000, despesas_cents: 5900000 }],
@@ -57,6 +63,15 @@ function painelDemonstracao() {
   };
 }
 
+// Oferece os anos que têm movimento, mais o corrente e o que está aberto —
+// para o ano escolhido nunca sumir da lista por não ter lançamento nenhum.
+function anosParaOGrafico(d) {
+  const atual = new Date().getFullYear();
+  const anos = new Set([atual, pnl.serieAno, d?.serie_ano].filter(Number.isInteger));
+  (d?.serie_anos || []).forEach(linha => anos.add(Number(linha.ano)));
+  return [...anos].filter(ano => ano >= 2000 && ano <= 2100).sort((a, b) => b - a);
+}
+
 async function carregarPainel() {
   pnl.carregando = true; pnl.erro = '';
   desenharPainel();
@@ -67,7 +82,7 @@ async function carregarPainel() {
     } else {
       pnl.demo = false;
       const [dados, categorias] = await Promise.all([
-        request(`/dashboard?year=${pnl.ano}&month=${pnl.mes}`, { headers: authHeaders(), cache: 'no-store' }),
+        request(`/dashboard?year=${pnl.ano}&month=${pnl.mes}&serie_ano=${pnl.serieAno}`, { headers: authHeaders(), cache: 'no-store' }),
         request('/categories', { headers: authHeaders(), cache: 'no-store' })
       ]);
       pnl.dados = dados;
@@ -202,10 +217,17 @@ function desenharPainel() {
 
     <section class="pnl-bloco">
       <div class="met-cabeca">
-        <div><h3>📊 Entrou x saiu, mês a mês</h3><p>Os doze meses até ${MESES_NOME[d.month - 1].toLowerCase()}.</p></div>
-        <div class="pnl-legenda"><span><i class="entra"></i>Entrou</span><span><i class="sai"></i>Saiu</span></div>
+        <div><h3>📊 Entrou x saiu, mês a mês</h3><p>Janeiro a dezembro de ${d.serie_ano || pnl.serieAno}.</p></div>
+        <div class="pnl-cabeca-dir">
+          <label class="pnl-ano-escolha">Ano
+            <select id="pnlSerieAno">
+              ${anosParaOGrafico(d).map(ano => `<option value="${ano}" ${ano === (d.serie_ano || pnl.serieAno) ? 'selected' : ''}>${ano}</option>`).join('')}
+            </select>
+          </label>
+          <div class="pnl-legenda"><span><i class="entra"></i>Entrou</span><span><i class="sai"></i>Saiu</span></div>
+        </div>
       </div>
-      ${barrasDoPeriodo(d.serie_meses, linha => `${MESES_NOME[linha.mes - 1].slice(0, 3).toLowerCase()}${linha.mes === 1 || linha === d.serie_meses[0] ? `/${String(linha.ano).slice(2)}` : ''}`)}
+      ${barrasDoPeriodo(d.serie_meses, linha => MESES_NOME[linha.mes - 1].slice(0, 3).toLowerCase())}
     </section>
 
     ${d.serie_anos.length > 1 ? `<section class="pnl-bloco">
@@ -317,6 +339,10 @@ function ligarEventosPainel() {
   const tela = document.querySelector('#telaCentral');
   tela.querySelector('#pnlTentarDeNovo')?.addEventListener('click', carregarPainel);
   tela.querySelector('#pnlAtualizar')?.addEventListener('click', carregarPainel);
+  tela.querySelector('#pnlSerieAno')?.addEventListener('change', evento => {
+    pnl.serieAno = Number(evento.target.value) || pnl.serieAno;
+    carregarPainel();
+  });
   tela.querySelector('#pnlMesAnterior')?.addEventListener('click', () => {
     pnl.mes -= 1; if (pnl.mes < 1) { pnl.mes = 12; pnl.ano -= 1; }
     carregarPainel();

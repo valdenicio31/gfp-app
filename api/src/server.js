@@ -1388,8 +1388,18 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   const anteriorMes = mes === 1 ? 12 : mes - 1;
   const anteriorAno = mes === 1 ? ano - 1 : ano;
   const hoje = new Date().toISOString().slice(0, 10);
-  /* onze meses para trás mais o mês pedido = série de doze */
-  const inicioSerie = montarData(mes === 12 ? ano : ano - 1, mes === 12 ? 1 : mes + 1, 1);
+  /* O gráfico mês a mês é do ano civil inteiro — janeiro a dezembro —, e não
+     dos doze meses anteriores ao mês aberto: comparar março com março exige
+     que a barra esteja sempre na mesma posição. O ano vem em serie_ano, para
+     poder olhar um ano fechado sem mudar o mês do resto do painel. */
+  const anoSerieBruto = req.query.serie_ano === undefined || req.query.serie_ano === ''
+    ? ano : Number(req.query.serie_ano);
+  if (!Number.isInteger(anoSerieBruto) || anoSerieBruto < 2000 || anoSerieBruto > 2100) {
+    return res.status(400).json({ error: 'Ano inválido para o gráfico mês a mês' });
+  }
+  const anoSerie = anoSerieBruto;
+  const inicioSerie = montarData(anoSerie, 1, 1);
+  const fimSerie = montarData(anoSerie, 12, 31);
   const visivel = '(a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))';
 
   const [contas, doMes, doMesAnterior, serieMeses, serieAnos, porCategoria, porFornecedor,
@@ -1410,13 +1420,17 @@ app.get('/dashboard', requireAuth, async (req, res) => {
         coalesce(sum(case when t.type='expense' then t.amount_cents end),0)::bigint despesas_cents
       from transactions t join accounts a on a.id=t.account_id
       where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5
-      group by 1 order by 1`, [familia, quem, ehAdmin, inicioSerie, ultimo]),
+      group by 1 order by 1`, [familia, quem, ehAdmin, inicioSerie, fimSerie]),
     query(`select extract(year from t.occurred_on)::int ano,
         coalesce(sum(case when t.type='income' then t.amount_cents end),0)::bigint receitas_cents,
         coalesce(sum(case when t.type='expense' then t.amount_cents end),0)::bigint despesas_cents
       from transactions t join accounts a on a.id=t.account_id
       where t.family_id=$1 and ${visivel} group by 1 order by 1 desc limit 5`, [familia, quem, ehAdmin]),
-    query(`select coalesce(t.category,'(sem categoria)') category, t.type,
+    /* Sem categoria não é uma categoria: é a ausência de uma. No relatório ela
+       vira "Outros" e soma com o que já está lá, senão a mesma coisa aparece
+       partida em duas fatias e nenhuma das duas diz a verdade. O nullif pega
+       também a categoria gravada em branco, não só a nula. */
+    query(`select coalesce(nullif(trim(t.category),''),'Outros') category, t.type,
         sum(t.amount_cents)::bigint total_cents, count(*)::int quantos
       from transactions t join accounts a on a.id=t.account_id
       where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5
@@ -1453,12 +1467,11 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   /* a série sai do banco só com os meses que têm movimento — completo os vazios */
   const porMes = new Map(serieMeses.rows.map(l => [l.ym, l]));
   const serie = [];
-  for (let i = 11; i >= 0; i -= 1) {
-    const data = new Date(Date.UTC(ano, mes - 1 - i, 1));
-    const ym = `${data.getUTCFullYear()}-${String(data.getUTCMonth() + 1).padStart(2, '0')}`;
+  for (let m = 1; m <= 12; m += 1) {
+    const ym = `${anoSerie}-${String(m).padStart(2, '0')}`;
     const linha = porMes.get(ym);
     serie.push({
-      ym, mes: data.getUTCMonth() + 1, ano: data.getUTCFullYear(),
+      ym, mes: m, ano: anoSerie,
       receitas_cents: Number(linha?.receitas_cents || 0),
       despesas_cents: Number(linha?.despesas_cents || 0)
     });
@@ -1522,6 +1535,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     contas: contas.rows, saldo_total_cents: saldoTotal,
     mes: { receitas_cents: receitas, despesas_cents: despesas, resultado_cents: receitas - despesas, quantos: doMes.rows.reduce((t, l) => t + l.quantos, 0) },
     mes_anterior: { receitas_cents: receitasAntes, despesas_cents: despesasAntes, resultado_cents: receitasAntes - despesasAntes },
+    serie_ano: anoSerie,
     serie_meses: serie,
     serie_anos: serieAnos.rows.map(l => ({ ano: l.ano, receitas_cents: Number(l.receitas_cents), despesas_cents: Number(l.despesas_cents) })).reverse(),
     por_categoria: porCategoria.rows.map(l => ({ ...l, total_cents: Number(l.total_cents) })),
