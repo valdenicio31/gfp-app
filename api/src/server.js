@@ -1092,6 +1092,113 @@ app.get('/card-purchases',requireAuth,async(req,res)=>{const familyScope=req.aut
 app.post('/card-purchases',requireAuth,allowRoles('admin','adult','dependent'),async(req,res)=>{const parsed=purchaseSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Compra inválida'});const d=parsed.data,card=await query('select id,owner_user_id from credit_cards where id=$1 and family_id=$2',[d.cardId,req.auth.familyId]);if(!card.rows[0]||card.rows[0].owner_user_id!==req.auth.sub)return res.status(404).json({error:'Cartão não encontrado'});const id=crypto.randomUUID();await query(`insert into card_purchases(id,family_id,card_id,created_by,description,category,amount_cents,installments,purchased_on) values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[id,req.auth.familyId,d.cardId,req.auth.sub,d.description,d.category,d.amountCents,d.installments,d.purchasedOn]);res.status(201).json({id})});
 
 
+/* ---------------- importação da fatura e de-para das categorias ---------------- */
+/* A fatura traz a categoria no vocabulário do emissor. Guardamos essa categoria
+   como veio (source_category) e, ao lado, o de-para para a categoria do GFP.
+   Ensinado uma vez por cartão, a importação seguinte já chega classificada. */
+
+const mapaSchema = z.object({
+  cardId: z.uuid(),
+  sourceCategory: z.string().trim().min(1).max(80),
+  category: z.string().trim().max(40).nullish()
+});
+
+// Só mexe em cartão da própria família e de quem é dono dele.
+async function cartaoDoDono(cardId, req) {
+  const card = await query('select id,owner_user_id from credit_cards where id=$1 and family_id=$2', [cardId, req.auth.familyId]);
+  const dono = card.rows[0];
+  if (!dono) return null;
+  if (req.auth.role !== 'admin' && dono.owner_user_id !== req.auth.sub) return null;
+  return dono;
+}
+
+app.get('/card-category-map', requireAuth, async (req, res) => {
+  const cardId = req.query.card_id;
+  if (cardId !== undefined && !/^[0-9a-f-]{36}$/i.test(String(cardId))) {
+    return res.status(400).json({ error: 'Cartão inválido' });
+  }
+  const result = await query(
+    `select m.id,m.card_id,m.source_category,m.category
+     from card_category_map m
+     where m.family_id=$1 and ($2::uuid is null or m.card_id=$2::uuid)
+     order by m.source_category`,
+    [req.auth.familyId, cardId || null]);
+  res.json(result.rows);
+});
+
+app.put('/card-category-map', requireAuth, allowRoles('admin', 'adult'), async (req, res) => {
+  const parsed = mapaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'De-para inválido' });
+  const d = parsed.data;
+  if (!await cartaoDoDono(d.cardId, req)) return res.status(404).json({ error: 'Cartão não encontrado' });
+  const result = await query(
+    `insert into card_category_map (family_id,card_id,source_category,category)
+     values ($1,$2,$3,$4)
+     on conflict (card_id,source_category)
+       do update set category=excluded.category, updated_at=now()
+     returning id,card_id,source_category,category`,
+    [req.auth.familyId, d.cardId, d.sourceCategory, d.category || null]);
+  res.json(result.rows[0]);
+});
+
+const importarFaturaSchema = z.object({
+  cardId: z.uuid(),
+  source: z.string().trim().max(120).default('fatura'),
+  items: z.array(z.object({
+    description: z.string().trim().min(1).max(120),
+    category: z.string().trim().max(40).nullish(),
+    sourceCategory: z.string().trim().max(80).nullish(),
+    amountCents: z.number().int().positive().max(999999999999),
+    installments: z.number().int().min(1).max(48).default(1),
+    purchasedOn: z.iso.date(),
+    importHash: z.string().trim().max(64).nullish()
+  })).min(1).max(500)
+});
+
+app.post('/card-purchases/import', requireAuth, allowRoles('admin', 'adult', 'dependent'), async (req, res) => {
+  const parsed = importarFaturaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da fatura inválidos' });
+  const d = parsed.data;
+  if (!await cartaoDoDono(d.cardId, req)) return res.status(404).json({ error: 'Cartão não encontrado' });
+
+  // O de-para do cartão preenche a categoria que a tela não definiu.
+  const mapa = new Map((await query(
+    'select source_category,category from card_category_map where card_id=$1 and family_id=$2',
+    [d.cardId, req.auth.familyId])).rows.map(l => [l.source_category, l.category]));
+
+  let gravadas = 0, repetidas = 0;
+  await transaction(async client => {
+    for (const item of d.items) {
+      const categoria = item.category
+        || (item.sourceCategory ? mapa.get(item.sourceCategory) : null)
+        || null;
+      const gravado = await client.query(
+        `insert into card_purchases
+           (id,family_id,card_id,created_by,description,category,source_category,
+            amount_cents,installments,purchased_on,import_hash,import_source)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         on conflict (family_id,import_hash) where import_hash is not null do nothing
+         returning id`,
+        [crypto.randomUUID(), req.auth.familyId, d.cardId, req.auth.sub,
+          item.description, categoria, item.sourceCategory || null,
+          item.amountCents, item.installments, item.purchasedOn,
+          item.importHash || null, d.source]);
+      if (gravado.rows[0]) gravadas += 1; else repetidas += 1;
+
+      // Categoria nova do emissor entra no de-para em branco, para a pessoa
+      // dizer uma vez só para onde ela vai daqui em diante.
+      if (item.sourceCategory && !mapa.has(item.sourceCategory)) {
+        await client.query(
+          `insert into card_category_map (family_id,card_id,source_category,category)
+           values ($1,$2,$3,$4) on conflict (card_id,source_category) do nothing`,
+          [req.auth.familyId, d.cardId, item.sourceCategory, categoria]);
+        mapa.set(item.sourceCategory, categoria);
+      }
+    }
+  });
+  res.status(201).json({ gravadas, repetidas, total: d.items.length });
+});
+
 /* ---------------- agenda de contas a pagar e a receber ---------------- */
 /* Uma conta prevista é uma regra ("aluguel, todo dia 10"). O calendário
    expande a regra nos dias do mês pedido e marca o que já virou lançamento. */
