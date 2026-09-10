@@ -607,3 +607,13 @@ body:not(.tela-ajuda) #telaAjuda{display:none}
 .legal-links a:hover{color:#fff;text-decoration:underline}
 main>footer a{color:var(--purple);text-decoration:none;font-weight:600}
 main>footer a:hover{text-decoration:underline}
+
+/* Transferências entre contas: origem, destino e quanto andou. */
+.pnl-transferencias{display:grid;gap:8px;margin-top:12px}
+.pnl-transf-linha{display:grid;grid-template-columns:1fr auto 1fr auto auto;gap:10px;align-items:center;
+  padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:#faf9fd}
+.pnl-transf-linha>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.pnl-transf-seta{color:var(--purple);font-weight:900}
+.pnl-transf-linha>small{color:var(--muted);font-weight:700}
+@media(max-width:640px){.pnl-transf-linha{grid-template-columns:1fr auto 1fr;gap:6px}
+  .pnl-transf-linha>b,.pnl-transf-linha>small{grid-column:1/-1}}

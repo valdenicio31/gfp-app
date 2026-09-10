@@ -29,6 +29,9 @@ function painelDemonstracao() {
     mes: { receitas_cents: 980000, despesas_cents: 715000, resultado_cents: 265000, quantos: 34 },
     mes_anterior: { receitas_cents: 1020000, despesas_cents: 810000, resultado_cents: 210000 },
     serie_ano: pnl.serieAno,
+    transferencias: { total_cents: 420000, quantas: 3, pares: [
+      { origem: 'Itaú · corrente', destino: 'Nubank · corrente', total_cents: 300000, quantas: 2 },
+      { origem: 'Nubank · corrente', destino: 'Dinheiro', total_cents: 120000, quantas: 1 }] },
     serie_meses: serie,
     serie_anos: [{ ano: pnl.ano - 1, receitas_cents: 10800000, despesas_cents: 8400000 },
       { ano: pnl.ano, receitas_cents: 7600000, despesas_cents: 5900000 }],
@@ -214,6 +217,25 @@ function desenharPainel() {
     ${d.contas.length ? `<div class="pnl-contas">${d.contas.map(conta => `
       <span class="pnl-conta ${Number(conta.balance_cents) < 0 ? 'negativa' : ''}">
         ${seguro(conta.name)}<em>${reais(conta.balance_cents)}</em></span>`).join('')}</div>` : ''}
+
+    ${d.transferencias && d.transferencias.quantas ? `
+    <section class="pnl-bloco">
+      <div class="met-cabeca">
+        <div><h3>🔁 Transferências entre suas contas</h3>
+          <p>${d.transferencias.quantas} ${d.transferencias.quantas === 1 ? 'transferência' : 'transferências'} no mês,
+            somando ${reais(d.transferencias.total_cents)}. Dinheiro que mudou de banco — não conta como entrada nem como saída.</p></div>
+      </div>
+      <div class="pnl-transferencias">
+        ${d.transferencias.pares.map(par => `
+          <div class="pnl-transf-linha">
+            <span>${seguro(par.origem)}</span>
+            <span class="pnl-transf-seta" aria-hidden="true">→</span>
+            <span>${seguro(par.destino)}</span>
+            <b>${reais(par.total_cents)}</b>
+            <small>${par.quantas}x</small>
+          </div>`).join('')}
+      </div>
+    </section>` : ''}
 
     <section class="pnl-bloco">
       <div class="met-cabeca">

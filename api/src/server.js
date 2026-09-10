@@ -1092,6 +1092,73 @@ app.get('/card-purchases',requireAuth,async(req,res)=>{const familyScope=req.aut
 app.post('/card-purchases',requireAuth,allowRoles('admin','adult','dependent'),async(req,res)=>{const parsed=purchaseSchema.safeParse(req.body);if(!parsed.success)return res.status(400).json({error:'Compra inválida'});const d=parsed.data,card=await query('select id,owner_user_id from credit_cards where id=$1 and family_id=$2',[d.cardId,req.auth.familyId]);if(!card.rows[0]||card.rows[0].owner_user_id!==req.auth.sub)return res.status(404).json({error:'Cartão não encontrado'});const id=crypto.randomUUID();await query(`insert into card_purchases(id,family_id,card_id,created_by,description,category,amount_cents,installments,purchased_on) values($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[id,req.auth.familyId,d.cardId,req.auth.sub,d.description,d.category,d.amountCents,d.installments,d.purchasedOn]);res.status(201).json({id})});
 
 
+/* ---------------- transferência entre contas do mesmo titular ---------------- */
+/* Duas pontas, um só movimento: sai de uma conta e entra na outra. Como o tipo
+   é 'transfer', o painel não conta isso como receita nem despesa — o mês não
+   ganha entrada nem saída que não houve. O saldo das duas contas muda. */
+
+const transferenciaSchema = z.object({
+  fromAccountId: z.uuid(),
+  toAccountId: z.uuid(),
+  amountCents: z.number().int().positive().max(999999999999),
+  occurredOn: z.iso.date(),
+  description: z.string().trim().max(140).default('Transferência entre contas')
+});
+
+app.post('/transfers', requireAuth, allowRoles('admin', 'adult'), async (req, res) => {
+  const parsed = transferenciaSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Dados da transferência inválidos' });
+  const { fromAccountId, toAccountId, amountCents, occurredOn, description } = parsed.data;
+  if (fromAccountId === toAccountId) {
+    return res.status(400).json({ error: 'A conta de origem e a de destino são a mesma' });
+  }
+  if (!await contaGravavel(req, fromAccountId) || !await contaGravavel(req, toAccountId)) {
+    return res.status(404).json({ error: 'Conta não encontrada' });
+  }
+
+  const transferId = crypto.randomUUID();
+  const saida = crypto.randomUUID(), entrada = crypto.randomUUID();
+  await transaction(async client => {
+    // As duas pontas apontam uma para a outra: a tela mostra de onde para onde
+    // sem precisar procurar o par.
+    await client.query(
+      `insert into transactions
+         (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on,
+          transfer_id,transfer_account_id,transfer_direction)
+       values ($1,$2,$3,$4,'transfer',$5,$6,$7,$8,$9,'out'),
+              ($10,$2,$11,$4,'transfer',$5,$6,$7,$8,$12,'in')`,
+      [saida, req.auth.familyId, fromAccountId, req.auth.sub, description, amountCents, occurredOn,
+        transferId, toAccountId, entrada, toAccountId, fromAccountId]);
+    await client.query('update accounts set balance_cents=balance_cents-$1 where id=$2 and family_id=$3',
+      [amountCents, fromAccountId, req.auth.familyId]);
+    await client.query('update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3',
+      [amountCents, toAccountId, req.auth.familyId]);
+  });
+  res.status(201).json({ id: transferId });
+});
+
+app.get('/transfers', requireAuth, async (req, res) => {
+  const periodo = mesPedido(req);
+  if (!periodo) return res.status(400).json({ error: 'Mês inválido' });
+  const primeiro = montarData(periodo.ano, periodo.mes, 1);
+  const ultimo = montarData(periodo.ano, periodo.mes, 31);
+  const ehAdmin = req.auth.role === 'admin';
+  // Só a ponta de saída: a transferência aparece uma vez, e não duas.
+  const result = await query(
+    `select t.transfer_id, t.occurred_on, t.description, t.amount_cents,
+            origem.id origem_id, origem.name origem_nome,
+            destino.id destino_id, destino.name destino_nome
+     from transactions t
+       join accounts origem on origem.id=t.account_id
+       left join accounts destino on destino.id=t.transfer_account_id
+     where t.family_id=$1 and t.transfer_direction='out'
+       and t.occurred_on between $4 and $5
+       and (origem.owner_user_id=$2 or ($3::boolean=true and origem.is_private=false))
+     order by t.occurred_on desc, t.created_at desc limit 200`,
+    [req.auth.familyId, req.auth.sub, ehAdmin, primeiro, ultimo]);
+  res.json(result.rows);
+});
+
 /* ---------------- importação da fatura e de-para das categorias ---------------- */
 /* A fatura traz a categoria no vocabulário do emissor. Guardamos essa categoria
    como veio (source_category) e, ao lado, o de-para para a categoria do GFP.
@@ -1637,9 +1704,38 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   if (!reserva) alertas.push({ nivel: 'info', titulo: 'A família ainda não tem reserva de emergência', detalhe: 'A recomendação comum é de três a seis meses de despesa', onde: 'metas' });
   if (!alertas.length) alertas.push({ nivel: 'bom', titulo: 'Nada pedindo atenção agora', detalhe: 'Contas em dia, orçamento respeitado e saldos positivos' });
 
+  /* Transferências do mês: dinheiro que andou entre as contas da própria
+     família. Não é receita nem despesa, então fica num painel à parte — o
+     movimento existe e precisa ser visto, só não pode somar no resultado. */
+  const transferencias = await query(
+    `select coalesce(sum(t.amount_cents),0)::bigint total_cents, count(*)::int quantas
+     from transactions t join accounts a on a.id=t.account_id
+     where t.family_id=$1 and t.transfer_direction='out'
+       and t.occurred_on between $4 and $5 and ${visivel}`,
+    [familia, quem, ehAdmin, primeiro, ultimo]);
+  const transferenciasPorPar = await query(
+    `select origem.name origem_nome, destino.name destino_nome,
+            sum(t.amount_cents)::bigint total_cents, count(*)::int quantas
+     from transactions t
+       join accounts origem on origem.id=t.account_id
+       left join accounts destino on destino.id=t.transfer_account_id
+     where t.family_id=$1 and t.transfer_direction='out'
+       and t.occurred_on between $4 and $5
+       and (origem.owner_user_id=$2 or ($3::boolean=true and origem.is_private=false))
+     group by 1,2 order by 3 desc limit 8`,
+    [familia, quem, ehAdmin, primeiro, ultimo]);
+
   res.json({
     hoje, year: ano, month: mes,
     contas: contas.rows, saldo_total_cents: saldoTotal,
+    transferencias: {
+      total_cents: Number(transferencias.rows[0]?.total_cents || 0),
+      quantas: Number(transferencias.rows[0]?.quantas || 0),
+      pares: transferenciasPorPar.rows.map(l => ({
+        origem: l.origem_nome, destino: l.destino_nome || 'conta removida',
+        total_cents: Number(l.total_cents), quantas: l.quantas
+      }))
+    },
     mes: { receitas_cents: receitas, despesas_cents: despesas, resultado_cents: receitas - despesas, quantos: doMes.rows.reduce((t, l) => t + l.quantos, 0) },
     mes_anterior: { receitas_cents: receitasAntes, despesas_cents: despesasAntes, resultado_cents: receitasAntes - despesasAntes },
     serie_ano: anoSerie,

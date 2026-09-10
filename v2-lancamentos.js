@@ -214,6 +214,8 @@ function desenharTela() {
       <button id="lancAlterar" ${podeEditar() && marcadas.length === 1 ? '' : 'disabled'}>${svg('lapis')}Alterar</button>
       <button class="excluir" id="lancExcluir" ${podeEditar() ? '' : 'disabled'}>${svg('lixeira')}Excluir${svg('seta', 'ico-s')}</button>
       <span class="sep"></span>
+      <button id="lancTransferir" ${podeEditar() ? '' : 'disabled'} title="Dinheiro que muda de uma conta sua para outra — não conta como entrada nem como saída">🔁 Transferência</button>
+      <span class="sep"></span>
       <button class="importar" id="lancImportar">${svg('entra')}Importar de qualquer banco</button>
       <button id="lancExportar">${svg('sai')}Exportar</button>
       <span class="sep"></span>
@@ -457,6 +459,68 @@ function fecharFlutuantes() {
 
 /* ---------- caixas ---------- */
 
+/* ---------- transferência entre contas do mesmo titular ---------- */
+/* Não é receita nem despesa: é o mesmo dinheiro mudando de banco. Por isso o
+   par de lançamentos nasce com tipo próprio e fica fora do "entrou x saiu". */
+
+function abrirTransferencia() {
+  const contas = lanc.contas.length ? lanc.contas : [];
+  if (contas.length < 2) {
+    return notify('🔴 É preciso ter duas contas cadastradas para transferir');
+  }
+
+  const fundo = abrirCaixa(`
+    <div><h3>Transferência entre contas</h3>
+      <p class="sub">Dinheiro que sai de uma conta sua e entra em outra. O saldo das duas muda,
+        e o mês não ganha entrada nem saída — porque nenhuma houve.</p></div>
+    <div class="campos">
+      <label>De<select id="trfOrigem">${contas.map(c => `<option value="${seguro(c.id)}">${seguro(c.name)}</option>`).join('')}</select></label>
+      <label>Para<select id="trfDestino">${contas.map((c, i) => `<option value="${seguro(c.id)}" ${i === 1 ? 'selected' : ''}>${seguro(c.name)}</option>`).join('')}</select></label>
+      <label>Valor (R$)<input id="trfValor" type="number" min="0.01" step="0.01" required></label>
+      <label>Data<input id="trfData" type="date" value="${new Date().toLocaleDateString('sv-SE')}"></label>
+      <label class="largo">Descrição<input id="trfDescricao" maxlength="140" placeholder="Transferência entre contas"></label>
+    </div>
+    <p class="lanc-erro" id="trfErro"></p>
+    <div class="pe">
+      <button data-fechar="1">Cancelar</button>
+      <button class="principal" id="trfSalvar">Registrar transferência</button>
+    </div>`);
+
+  fundo.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
+  fundo.querySelector('#trfSalvar').addEventListener('click', async () => {
+    const erro = fundo.querySelector('#trfErro');
+    const origem = fundo.querySelector('#trfOrigem').value;
+    const destino = fundo.querySelector('#trfDestino').value;
+    const valor = Math.round(Number(fundo.querySelector('#trfValor').value) * 100);
+    if (origem === destino) return (erro.textContent = 'Escolha contas diferentes para a origem e o destino.');
+    if (!(valor > 0)) return (erro.textContent = 'Informe o valor da transferência.');
+
+    if (lanc.demo) {
+      fecharCaixa();
+      return notify('🟢 Transferência simulada registrada');
+    }
+    const botao = fundo.querySelector('#trfSalvar');
+    botao.disabled = true; botao.textContent = 'Registrando…';
+    try {
+      await request('/transfers', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          fromAccountId: origem, toAccountId: destino, amountCents: valor,
+          occurredOn: fundo.querySelector('#trfData').value,
+          description: fundo.querySelector('#trfDescricao').value.trim() || 'Transferência entre contas'
+        })
+      });
+      fecharCaixa();
+      notify('🟢 Transferência registrada');
+      await carregarLancamentos();
+      if (typeof recarregarPainel === 'function') recarregarPainel();
+    } catch (falha) {
+      botao.disabled = false; botao.textContent = 'Registrar transferência';
+      erro.textContent = typeof mensagemAmigavel === 'function' ? mensagemAmigavel(falha.message) : falha.message;
+    }
+  });
+}
+
 function abrirCaixa(html, classeExtra = '') {
   let fundo = document.querySelector('#lancFundo');
   if (!fundo) {
@@ -659,6 +723,7 @@ function ligarEventos() {
     if (linha) abrirConfirmacaoExclusao([linha], 'a linha marcada');
   }));
   tela.querySelector('#lancNovo').addEventListener('click', () => abrirEditor(null));
+  tela.querySelector('#lancTransferir')?.addEventListener('click', abrirTransferencia);
   tela.querySelector('#lancAlterar').addEventListener('click', () => {
     const marcada = linhasFiltradas().find(linha => lanc.selecao.has(linha.id));
     if (marcada) abrirEditor(marcada.id);
