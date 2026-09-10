@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GFP — Testes do núcleo</title>
+<style>
+  body{margin:0;padding:24px;background:#f6f4fb;color:#1d1830;
+    font:15px/1.5 Inter,Segoe UI,Arial,sans-serif}
+  h1{font-size:20px;margin:0 0 4px}
+  p.sub{color:#776f87;margin:0 0 18px}
+  #placar{display:inline-block;padding:10px 16px;border-radius:12px;font-weight:800;margin-bottom:16px}
+  #placar.ok{background:#ecfff2;color:#08762d}
+  #placar.falhou{background:#fff0f0;color:#b91c1c}
+  .caso{background:#fff;border:1px solid #ebe7f1;border-left:4px solid #22c55e;
+    border-radius:10px;padding:11px 14px;margin-bottom:8px}
+  .caso.falhou{border-left-color:#ef4444}
+  .caso b{font-weight:700}
+  .caso ul{margin:6px 0 0;padding-left:18px;color:#b91c1c}
+  .caso small{color:#776f87}
+</style>
+</head>
+<body>
+<h1>Testes do núcleo do GFP</h1>
+<p class="sub">Leitura de extrato, leitura de fatura e matemática dos empréstimos.
+  Os mesmos casos rodam sob <code>node --test</code>.</p>
+<div id="placar">executando…</div>
+<div id="resultado"></div>
+
+<script src="../v2-extrato.js"></script>
+<script src="../v2-fatura.js"></script>
+<script src="../v2-emprestimos-calculo.js"></script>
+<script src="casos-gfp.js"></script>
+<script>
+(() => {
+  const resultado = document.querySelector('#resultado');
+  const placar = document.querySelector('#placar');
+  let passaram = 0, falharam = 0;
+
+  for (const [nome, executar] of window.CASOS_GFP) {
+    const falhas = [];
+    const verificar = (condicao, mensagem) => { if (!condicao) falhas.push(mensagem); };
+    try {
+      executar(verificar);
+    } catch (erro) {
+      falhas.push('erro inesperado: ' + erro.message);
+    }
+    const bloco = document.createElement('div');
+    bloco.className = 'caso' + (falhas.length ? ' falhou' : '');
+    bloco.innerHTML = (falhas.length ? '🔴 ' : '🟢 ') + '<b>' + nome + '</b>'
+      + (falhas.length ? '<ul>' + falhas.map(f => '<li>' + f + '</li>').join('') + '</ul>' : '');
+    resultado.appendChild(bloco);
+    if (falhas.length) falharam += 1; else passaram += 1;
+  }
+
+  placar.className = falharam ? 'falhou' : 'ok';
+  placar.textContent = falharam
+    ? `${falharam} caso(s) com falha · ${passaram} passaram`
+    : `${passaram} casos passaram`;
+  window.__placar = { passaram, falharam };
+})();
+</script>
+</body>
+</html>
