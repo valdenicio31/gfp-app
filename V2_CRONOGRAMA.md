@@ -1,47 +1,69 @@
 # GFP Familiar V2 — Cronograma de Execução
 
+**Revisto em 10 de setembro de 2026**, conferindo arquivo por arquivo o que
+existe no repositório. A revisão anterior marcava como planejadas quatro fases
+já entregues e não registrava a ausência de testes automatizados.
+
 | Fase | Entrega | Peso | Estado |
 |---:|---|---:|---|
 | 01 | Arquitetura familiar, dados e segurança | 8% | Concluída |
 | 02 | Design System VIA IA e componentes | 8% | Concluída |
-| 03 | Login, cadastro e recuperação | 8% | Cadastro e login conectados; recuperação pendente |
-| 04 | Famílias, usuários, perfis e permissões | 10% | Cadastro destacado, administrador único, 20 membros, perfis padrão e personalizados |
-| 05 | Núcleo financeiro multiusuário | 12% | Contas e lançamentos conectados à interface real |
-| 06 | Central da Família e dashboard individual | 10% | Três meses simulados e visões familiar/individual aplicadas |
-| 07 | Contas, cartões e parcelamentos | 8% | Concluída: cadastros, compras em até 48x, faturas e projeções conectados |
-| 08 | Orçamentos, metas e reserva | 8% | Planejada |
-| 09 | Dashboards avançados e semáforos | 10% | Comparativo receitas x despesas, série de três meses e semáforos habilitados |
-| 10 | Alertas e inteligência financeira | 6% | Simulador educativo CDI com ranking de três instituições |
-| 11 | Licenças e administração | 5% | Planejada |
-| 12 | Segurança, LGPD, auditoria e testes | 5% | Planejada |
-| 13 | Publicação e homologação comercial | 2% | Planejada |
+| 03 | Login, cadastro e recuperação | 8% | Concluída — recuperação de senha com página, API e token próprios |
+| 04 | Famílias, usuários, perfis e permissões | 10% | Concluída |
+| 05 | Núcleo financeiro multiusuário | 12% | Concluída |
+| 06 | Central da Família e dashboard individual | 10% | Concluída |
+| 07 | Contas, cartões e parcelamentos | 8% | Concluída |
+| 08 | Orçamentos, metas e reserva | 8% | Concluída — `v2-metas.js` e migração `002` |
+| 09 | Dashboards avançados e semáforos | 10% | Concluída |
+| 10 | Alertas e inteligência financeira | 6% | Concluída — simulador CDI com três instituições |
+| 11 | Licenças e administração | 5% | Concluída — migrações `004` e `006` |
+| 12 | Segurança, LGPD, auditoria e testes | 5% | **Parcial** — LGPD e auditoria entregues; testes cobrem só o núcleo |
+| 13 | Publicação e homologação comercial | 2% | Concluída — dois serviços no ar |
 
-**Progresso funcional ponderado:** 91%.
+**Progresso funcional:** 12 fases concluídas e uma parcial.
 
-> A versão atual é uma prévia navegável. Login, permissões e números são demonstrativos até a conexão com autenticação e banco de dados de produção.
+## Entregue depois do cronograma original
 
-**Checkpoint de homologação:** branch `gfp-familiar-v2`, PR em rascunho e prévia isolada da V1.
+Trabalho posterior ao desenho das treze fases, feito a partir do uso real:
 
-**Infraestrutura ativa:** `gfp-postgres` Basic-256mb/1 GB e `gfp-familiar-api` Free, com teste de saúde HTTP 200.
+| Entrega | Estado |
+|---|---|
+| Importação de extrato em PDF, inclusive protegido por senha | Concluída |
+| Exportação da leitura para CSV, para conferir e corrigir na planilha | Concluída |
+| Importação de fatura de cartão com de-para das categorias do emissor | Concluída |
+| Transferência entre contas do mesmo titular | Concluída |
+| Gráfico mês a mês por ano civil, com seletor de ano | Concluída |
+| Logotipo VIA IA nas telas de navegação | Concluída |
+| Matemática dos empréstimos — cronograma, juros e antecipação | Concluída |
+| Módulo de empréstimos — banco, API e tela | **Não iniciado** |
 
-**Checkpoint funcional:** cadastro de família, login, perfil real, contas privadas/familiares e lançamentos protegidos por `family_id`.
+## O que falta
 
-**Checkpoint familiar:** convites válidos por sete dias, aceite com senha própria, limite de 20 membros e administração exclusiva do perfil administrador.
+1. **Módulo de empréstimos.** O cálculo está pronto e testado; faltam a tabela,
+   os endpoints e a tela. Depende de uma definição: parcela paga vira lançamento
+   de despesa na conta, ou o módulo fica isolado do fluxo de caixa?
+2. **Cobertura de testes na API.** Os 15 casos atuais cobrem o núcleo que roda
+   no navegador. Nenhuma rota do Express é exercitada por teste.
+3. **Homologação comercial.** Fase 13 publicada, sem aceite formal registrado.
 
-**Revisão aprovada:** limite ampliado para 20 membros; cadastro de familiares movido para o módulo Usuários; perfis padrão e personalizados separados do login; apenas um administrador titular ativo por família.
+## Como isto é verificado
 
-**Privacidade validada:** administrador alterna entre toda a família e seus próprios dados; demais membros recebem apenas contas e lançamentos próprios. Demonstração habilitada para usuários, perfis personalizados e junho–agosto de 2026.
+O núcleo — leitura de extrato, leitura de fatura e matemática de empréstimo —
+tem 15 casos automatizados em `tests/`. Rodam em dois lugares: `tests/index.html`
+no navegador, que é onde esse código de fato executa, e `npm test` na API, por
+um wrapper que avalia os mesmos arquivos sob `node --test`.
 
-**Checkpoint visual:** gráfico comparativo mensal de receitas e despesas, destaque do mês selecionado e atalhos diretos para cadastro de usuários e perfis.
+O que **não** está coberto, e portanto depende de conferência manual a cada
+alteração:
 
-**Checkpoint investimentos:** simulação interativa de Nubank, Mercado Pago e PagBank, com valor, prazo, CDI ilustrativo, ranking automático e aviso educativo.
+- as rotas da API e as consultas SQL;
+- o comportamento das telas;
+- a leitura de faturas e extratos de bancos reais — os casos usam arquivos
+  construídos para o teste, e formatos variam entre emissores.
 
-**Checkpoint cartões:** comparativo de três cartões, faturas e limites, evolução mensal, uso por familiar, categorias, semáforos, alertas e projeções futuras com proteção da visão individual.
+## Infraestrutura
 
-**Checkpoint cadastral:** usuários com nome, CPF validado e mascarado, e-mail, nascimento, celular/WhatsApp, endereço completo com preenchimento automático pelo CEP, foto ou avatar e associação visual de emojis aos perfis.
-
-**Checkpoint operacional:** banco e API preparados para cartões reais do usuário e compras à vista ou parceladas em até 48 vezes, mantendo o escopo familiar exclusivo do administrador.
-
-**Checkpoint cartões conectado:** formulários reais e demonstrativos para cadastrar cartões e registrar compras, cálculo instantâneo da parcela e atualização da fatura.
-
-**Homologação da Fase 07:** interface, API e banco reconciliados; cadastro de cartões, registro de compras, parcelamento, leitura das faturas e proteção por `family_id` validados no código.
+- `gfp-gestao-financeira` — site estático.
+- `gfp-familiar-api` — Node, com `gfp-postgres` gerenciado.
+- Deploy automático a cada push na branch principal.
+- Migrações aplicadas na subida da API, hoje até `013_transferencias.sql`.
