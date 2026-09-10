@@ -18,7 +18,7 @@ const DATA_NA_LINHA = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?\s+/;
 const PARCELA_NA_LINHA = /\b(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*(?:\/|\s+de\s+)\s*(\d{1,2})\b/i;
 
 // Linhas que existem em toda fatura e não são compra nem categoria.
-const RUIDO_DA_FATURA = /\b(total|subtotal|limite|vencimento|fechamento|pagamento m[íi]nimo|encargos|juros|multa|iof|saldo|p[áa]gina|cpf|cnpj|central de atendimento|ouvidoria|sac|fatura anterior|d[ée]bito autom[áa]tico)\b/i;
+const RUIDO_DA_FATURA = /\b(total|subtotal|limite|vencimento|fechamento|pagamento m[íi]nimo|encargos|juros|multa|iof|saldo|p[áa]gina|cpf|cnpj|central de atendimento|ouvidoria|sac|fatura anterior|d[ée]bito autom[áa]tico|sacador|avalista|titular|portador|final|nome|banco|ag[êe]ncia|conta|emiss[ãa]o|parcelas?)\b/i;
 
 const soLetras = texto => String(texto || '').replace(/[^a-zà-ú\s]/gi, '').trim();
 
@@ -28,13 +28,25 @@ const soLetras = texto => String(texto || '').replace(/[^a-zà-ú\s]/gi, '').tri
 // de cabeçalho ou rodapé — e que só vale como categoria se vier compra depois.
 function pareceTituloDeCategoria(linha) {
   const texto = String(linha || '').trim();
-  if (!texto || texto.length > 42) return false;
+  if (!texto || texto.length > 30) return false;
   if (DATA_NA_LINHA.test(texto)) return false;
   if (VALOR_NA_LINHA.test(texto)) { VALOR_NA_LINHA.lastIndex = 0; return false; }
   VALOR_NA_LINHA.lastIndex = 0;
   if (RUIDO_DA_FATURA.test(texto)) return false;
+
+  // Uma fatura real do Itaú mostrou o que o filtro largo deixava passar:
+  // "Sacador Avalista:" (rótulo de campo), "VALDENICIO MELLO A BARBO(final
+  // 8279)" (nome do titular), "DIVERSOS .PINHAIS" (praça do estabelecimento)
+  // e "parcelas." (pedaço de frase). Categoria de verdade é uma ou duas
+  // palavras limpas: sem número, sem pontuação de campo, sem ponto solto.
+  if (/[0-9():;=*]/.test(texto)) return false;
+  if (/[.,-]\s*$/.test(texto)) return false;
+  if (/\s\.|\.\s/.test(texto)) return false;
+
   const palavras = soLetras(texto).split(/\s+/).filter(Boolean);
-  return palavras.length >= 1 && palavras.length <= 4 && soLetras(texto).length >= 4;
+  if (!palavras.length || palavras.length > 3) return false;
+  // Ao menos uma palavra de verdade, não só siglas soltas.
+  return palavras.some(p => p.length >= 4) && soLetras(texto).length >= 4;
 }
 
 /** Lê a fatura e devolve as compras, com a categoria do emissor quando existe.

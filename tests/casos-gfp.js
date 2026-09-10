@@ -92,6 +92,22 @@ const CASOS_GFP = [
     v(r.compras[0].installments === 3, `três parcelas, veio ${r.compras[0].installments}`);
   }],
 
+  ['ruído da fatura real não vira categoria', v => {
+    // Estes textos foram lidos de uma fatura do Itaú de verdade e chegaram à
+    // tela como se fossem categoria. Rótulo de campo, nome do titular, praça
+    // do estabelecimento e pedaço de frase não são classificação.
+    const falsos = ['Sacador Avalista:', 'VALDENICIO MELLO A BARBO(final 8279)',
+      'DIVERSOS .PINHAIS', 'MORADIA .OSASCO', 'DIVERSOS .', 'parcelas.',
+      'Total da fatura', 'Vencimento', 'Página 2'];
+    falsos.forEach(texto => {
+      v(!GFPFatura.pareceTituloDeCategoria(texto), `"${texto}" não devia ser categoria`);
+    });
+    // E o que é categoria de verdade continua sendo reconhecido.
+    ['Alimentação', 'Transporte', 'Serviços', 'Casa e decoração'].forEach(texto => {
+      v(GFPFatura.pareceTituloDeCategoria(texto), `"${texto}" devia ser categoria`);
+    });
+  }],
+
   ['de-para traduz a categoria do emissor para a do GFP', v => {
     const compras = [
       { sourceCategory: 'Restaurantes', category: '' },
