@@ -55,11 +55,19 @@ async function abrirImportacaoFatura() {
       <small>As categorias do próprio cartão são aproveitadas e traduzidas para as suas.</small>
       <input id="fatArquivo" type="file" accept="${FATURA_ACEITA}" hidden>
     </label>
+    <p class="sub" id="fatAprendidas"></p>
     <p class="lanc-erro" id="fatErro"></p>
-    <div class="pe"><button data-fechar="1">Cancelar</button></div>`);
+    <div class="pe">
+      <button data-fechar="1">Cancelar</button>
+      <button id="fatLimpar" hidden>Esquecer categorias deste cartão</button>
+    </div>`);
 
   fundo.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
-  fundo.querySelector('#fatCartao').addEventListener('change', e => { fat.cardId = e.target.value; });
+  fundo.querySelector('#fatCartao').addEventListener('change', e => {
+    fat.cardId = e.target.value;
+    mostrarAprendidas(fundo);
+  });
+  mostrarAprendidas(fundo);
   fundo.querySelector('#fatArquivo').addEventListener('change', async evento => {
     const arquivo = evento.target.files?.[0];
     if (!arquivo) return;
@@ -70,6 +78,40 @@ async function abrirImportacaoFatura() {
     fat.cardId = fundo.querySelector('#fatCartao').value;
     await prepararPreviaFatura(arquivo);
   });
+}
+
+/* Uma leitura ruim da fatura grava categoria que não é categoria. Sem uma
+   forma de esquecer, o erro fica para sempre no cartão. */
+async function mostrarAprendidas(fundo) {
+  const texto = fundo.querySelector('#fatAprendidas');
+  const botao = fundo.querySelector('#fatLimpar');
+  if (!texto || !botao) return;
+  try {
+    const mapa = await request(`/card-category-map?card_id=${encodeURIComponent(fat.cardId)}`,
+      { headers: authHeaders(), cache: 'no-store' });
+    if (!mapa.length) {
+      texto.textContent = 'Este cartão ainda não aprendeu nenhuma categoria.';
+      botao.hidden = true;
+      return;
+    }
+    texto.textContent = `Categorias já aprendidas neste cartão: ${mapa.map(l => l.source_category).join(' · ')}`;
+    botao.hidden = false;
+    botao.onclick = async () => {
+      botao.disabled = true;
+      try {
+        const r = await request(`/card-category-map?card_id=${encodeURIComponent(fat.cardId)}`,
+          { method: 'DELETE', headers: authHeaders() });
+        notify(`🟢 ${r.apagadas} categoria(s) esquecida(s)`);
+        await mostrarAprendidas(fundo);
+      } catch (falha) {
+        fundo.querySelector('#fatErro').textContent =
+          typeof mensagemAmigavel === 'function' ? mensagemAmigavel(falha.message) : falha.message;
+      }
+      botao.disabled = false;
+    };
+  } catch {
+    texto.textContent = '';
+  }
 }
 
 /* ---------- passo 2: ler e casar com o de-para ---------- */

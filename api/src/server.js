@@ -1208,6 +1208,18 @@ app.put('/card-category-map', requireAuth, allowRoles('admin', 'adult'), async (
   res.json(result.rows[0]);
 });
 
+/* Apaga o que o cartão aprendeu de errado. Uma leitura ruim da fatura grava
+   categorias que não são categoria — e, sem isto, elas ficariam para sempre. */
+app.delete('/card-category-map', requireAuth, allowRoles('admin', 'adult'), async (req, res) => {
+  const cardId = req.query.card_id;
+  if (!isUuid(String(cardId || ''))) return res.status(400).json({ error: 'Cartão inválido' });
+  if (!await cartaoDoDono(cardId, req)) return res.status(404).json({ error: 'Cartão não encontrado' });
+  const apagadas = await query(
+    'delete from card_category_map where card_id=$1 and family_id=$2 returning id',
+    [cardId, req.auth.familyId]);
+  res.json({ apagadas: apagadas.rowCount });
+});
+
 const importarFaturaSchema = z.object({
   cardId: z.uuid(),
   source: z.string().trim().max(120).default('fatura'),

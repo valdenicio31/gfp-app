@@ -38,7 +38,8 @@ function pedacosEmLinhas(itens, toleranciaY = 2.5) {
     .map(item => ({
       texto: item.str,
       x: Array.isArray(item.transform) ? item.transform[4] : 0,
-      y: Array.isArray(item.transform) ? item.transform[5] : 0
+      y: Array.isArray(item.transform) ? item.transform[5] : 0,
+      largura: Number(item.width) || 0
     }));
 
   const linhas = [];
@@ -53,13 +54,21 @@ function pedacosEmLinhas(itens, toleranciaY = 2.5) {
     }
   }
 
+  // Juntar tudo com espaço parte palavra ao meio: o PDF entrega a letra
+  // acentuada como pedaço próprio, e "VESTUÁRIO" chegava como "VESTU Á RIO".
+  // Só há espaço de verdade quando existe distância entre um pedaço e o
+  // seguinte; encostados, são a mesma palavra.
+  const juntar = pedacos => pedacos.reduce((texto, pedaco, indice) => {
+    const anterior = pedacos[indice - 1];
+    if (!anterior) return pedaco.texto.trim();
+    const fimDoAnterior = anterior.x + anterior.largura;
+    const separado = pedaco.x - fimDoAnterior > 0.8;
+    return texto + (separado ? ' ' : '') + pedaco.texto.trim();
+  }, '');
+
   return linhas
     .sort((a, b) => b.y - a.y)              // de cima para baixo
-    .map(linha => linha.pedacos
-      .sort((a, b) => a.x - b.x)            // da esquerda para a direita
-      .map(pedaco => pedaco.texto.trim())
-      .filter(Boolean)
-      .join(' ')
+    .map(linha => juntar(linha.pedacos.sort((a, b) => a.x - b.x))
       .replace(/\s{2,}/g, ' ')
       .trim())
     .filter(Boolean);

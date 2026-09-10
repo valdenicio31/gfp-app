@@ -24,29 +24,45 @@ const soLetras = texto => String(texto || '').replace(/[^a-zà-ú\s]/gi, '').tri
 
 /* ---------- categoria: título de seção ou coluna da linha ---------- */
 
+/** Tira do título da seção a categoria em si.
+ *
+ *  O Itaú escreve a categoria seguida da praça do estabelecimento:
+ *  "DIVERSOS .PINHAIS", "MORADIA .OSASCO", "DIVERSOS ." — a categoria é o que
+ *  vem antes do ponto. Já "TURISMO E ENTRETENIM." termina em ponto porque o
+ *  próprio emissor abreviou, e aí o ponto faz parte do nome.
+ *
+ *  Devolve '' quando a linha nem chega a ser um título. */
+function categoriaDoTitulo(linha) {
+  let texto = String(linha || '').trim();
+  if (!texto || texto.length > 40) return '';
+  if (DATA_NA_LINHA.test(texto)) return '';
+  if (VALOR_NA_LINHA.test(texto)) { VALOR_NA_LINHA.lastIndex = 0; return ''; }
+  VALOR_NA_LINHA.lastIndex = 0;
+
+  // " ." separa a categoria da praça; "." colado é abreviação e fica.
+  const corte = texto.indexOf(' .');
+  if (corte > 0) texto = texto.slice(0, corte);
+  return texto.trim();
+}
+
 // Um título de seção é uma linha curta, sem data e sem valor, que não é ruído
 // de cabeçalho ou rodapé — e que só vale como categoria se vier compra depois.
 function pareceTituloDeCategoria(linha) {
-  const texto = String(linha || '').trim();
-  if (!texto || texto.length > 30) return false;
-  if (DATA_NA_LINHA.test(texto)) return false;
-  if (VALOR_NA_LINHA.test(texto)) { VALOR_NA_LINHA.lastIndex = 0; return false; }
-  VALOR_NA_LINHA.lastIndex = 0;
-  if (RUIDO_DA_FATURA.test(texto)) return false;
+  const nucleo = categoriaDoTitulo(linha);
+  if (!nucleo) return false;
+  if (RUIDO_DA_FATURA.test(nucleo)) return false;
 
   // Uma fatura real do Itaú mostrou o que o filtro largo deixava passar:
   // "Sacador Avalista:" (rótulo de campo), "VALDENICIO MELLO A BARBO(final
-  // 8279)" (nome do titular), "DIVERSOS .PINHAIS" (praça do estabelecimento)
-  // e "parcelas." (pedaço de frase). Categoria de verdade é uma ou duas
-  // palavras limpas: sem número, sem pontuação de campo, sem ponto solto.
-  if (/[0-9():;=*]/.test(texto)) return false;
-  if (/[.,-]\s*$/.test(texto)) return false;
-  if (/\s\.|\.\s/.test(texto)) return false;
+  // 8279)" (nome do titular), "parcelas." e "Continua..." (pedaços de frase).
+  if (/[0-9():;=*]/.test(nucleo)) return false;
+  if (/\.\.\./.test(String(linha))) return false;
+  // O emissor escreve a categoria em caixa alta; frase corrida vem em minúscula.
+  if (nucleo === nucleo.toLowerCase() && /\s|\.$/.test(String(linha).trim())) return false;
 
-  const palavras = soLetras(texto).split(/\s+/).filter(Boolean);
+  const palavras = soLetras(nucleo).split(/\s+/).filter(Boolean);
   if (!palavras.length || palavras.length > 3) return false;
-  // Ao menos uma palavra de verdade, não só siglas soltas.
-  return palavras.some(p => p.length >= 4) && soLetras(texto).length >= 4;
+  return palavras.some(p => p.length >= 4) && soLetras(nucleo).length >= 4;
 }
 
 /** Lê a fatura e devolve as compras, com a categoria do emissor quando existe.
@@ -79,7 +95,7 @@ function lerFaturaCartao(texto, { categoriasConhecidas = [] } = {}) {
     const data = linha.match(DATA_NA_LINHA);
     if (!data) {
       // Guarda o candidato a título; ele só vira seção quando vier uma compra.
-      if (pareceTituloDeCategoria(linha)) secaoPendente = linha.trim();
+      if (pareceTituloDeCategoria(linha)) secaoPendente = categoriaDoTitulo(linha);
       else ignoradas += 1;
       continue;
     }
@@ -154,6 +170,6 @@ function aplicarDePara(compras, mapa = {}) {
   }));
 }
 
-const GFPFatura = { lerFaturaCartao, aplicarDePara, pareceTituloDeCategoria };
+const GFPFatura = { lerFaturaCartao, aplicarDePara, pareceTituloDeCategoria, categoriaDoTitulo };
 if (typeof window !== 'undefined') window.GFPFatura = GFPFatura;
 if (typeof module !== 'undefined' && module.exports) module.exports = GFPFatura;

@@ -93,18 +93,34 @@ const CASOS_GFP = [
   }],
 
   ['ruído da fatura real não vira categoria', v => {
-    // Estes textos foram lidos de uma fatura do Itaú de verdade e chegaram à
-    // tela como se fossem categoria. Rótulo de campo, nome do titular, praça
-    // do estabelecimento e pedaço de frase não são classificação.
-    const falsos = ['Sacador Avalista:', 'VALDENICIO MELLO A BARBO(final 8279)',
-      'DIVERSOS .PINHAIS', 'MORADIA .OSASCO', 'DIVERSOS .', 'parcelas.',
-      'Total da fatura', 'Vencimento', 'Página 2'];
-    falsos.forEach(texto => {
+    // Textos lidos de uma fatura do Itaú de verdade que chegaram à tela como
+    // se fossem categoria: rótulo de campo, nome do titular, pedaço de frase.
+    ['Sacador Avalista:', 'VALDENICIO MELLO A BARBO(final 8279)', 'parcelas.',
+      'Continua...', 'Total da fatura', 'Vencimento', 'Página 2'
+    ].forEach(texto => {
       v(!GFPFatura.pareceTituloDeCategoria(texto), `"${texto}" não devia ser categoria`);
     });
-    // E o que é categoria de verdade continua sendo reconhecido.
     ['Alimentação', 'Transporte', 'Serviços', 'Casa e decoração'].forEach(texto => {
       v(GFPFatura.pareceTituloDeCategoria(texto), `"${texto}" devia ser categoria`);
+    });
+  }],
+
+  ['categoria do Itaú é separada da praça do estabelecimento', v => {
+    // A mesma fatura mostrou que DIVERSOS, MORADIA e VESTUÁRIO são categorias
+    // de verdade do emissor — o que atrapalhava era o sufixo da cidade.
+    const casos = [
+      ['DIVERSOS .PINHAIS', 'DIVERSOS'],
+      ['MORADIA .OSASCO', 'MORADIA'],
+      ['DIVERSOS .RIO DE JANEIR', 'DIVERSOS'],
+      ['DIVERSOS .', 'DIVERSOS'],
+      ['VESTUÁRIO .', 'VESTUÁRIO'],
+      // Ponto colado é abreviação do próprio emissor e faz parte do nome.
+      ['TURISMO E ENTRETENIM.', 'TURISMO E ENTRETENIM.']
+    ];
+    casos.forEach(([entrada, esperado]) => {
+      const saida = GFPFatura.categoriaDoTitulo(entrada);
+      v(saida === esperado, `"${entrada}" deveria virar "${esperado}", veio "${saida}"`);
+      v(GFPFatura.pareceTituloDeCategoria(entrada), `"${entrada}" devia ser aceita como categoria`);
     });
   }],
 
