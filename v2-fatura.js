@@ -18,7 +18,7 @@ const DATA_NA_LINHA = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?\s+/;
 const PARCELA_NA_LINHA = /\b(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s*(?:\/|\s+de\s+)\s*(\d{1,2})\b/i;
 
 // Linhas que existem em toda fatura e não são compra nem categoria.
-const RUIDO = /\b(total|subtotal|limite|vencimento|fechamento|pagamento m[íi]nimo|encargos|juros|multa|iof|saldo|p[áa]gina|cpf|cnpj|central de atendimento|ouvidoria|sac|fatura anterior|d[ée]bito autom[áa]tico)\b/i;
+const RUIDO_DA_FATURA = /\b(total|subtotal|limite|vencimento|fechamento|pagamento m[íi]nimo|encargos|juros|multa|iof|saldo|p[áa]gina|cpf|cnpj|central de atendimento|ouvidoria|sac|fatura anterior|d[ée]bito autom[áa]tico)\b/i;
 
 const soLetras = texto => String(texto || '').replace(/[^a-zà-ú\s]/gi, '').trim();
 
@@ -32,7 +32,7 @@ function pareceTituloDeCategoria(linha) {
   if (DATA_NA_LINHA.test(texto)) return false;
   if (VALOR_NA_LINHA.test(texto)) { VALOR_NA_LINHA.lastIndex = 0; return false; }
   VALOR_NA_LINHA.lastIndex = 0;
-  if (RUIDO.test(texto)) return false;
+  if (RUIDO_DA_FATURA.test(texto)) return false;
   const palavras = soLetras(texto).split(/\s+/).filter(Boolean);
   return palavras.length >= 1 && palavras.length <= 4 && soLetras(texto).length >= 4;
 }
