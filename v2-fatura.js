@@ -65,6 +65,40 @@ function pareceTituloDeCategoria(linha) {
   return palavras.some(p => p.length >= 4) && soLetras(nucleo).length >= 4;
 }
 
+/** Fatura exportada como planilha (CSV/TXT).
+ *
+ *  Reaproveita o leitor delimitado do extrato, que já descobre sozinho quais
+ *  colunas são data, descrição, valor e categoria. Devolve null quando o texto
+ *  não é tabela — aí a leitura segue pelo caminho do PDF.
+ *
+ *  Na fatura todo valor é gasto: o sinal que o arquivo traga é ignorado. */
+function lerFaturaDeTabela(texto) {
+  const lido = GFPExtrato.lerDelimitado(String(texto || ''));
+  if (!lido || !lido.linhas || !lido.linhas.length) return null;
+
+  const categoriasVistas = new Set();
+  const compras = lido.linhas.map(linha => {
+    const origem = String(linha.sourceCategory || '').trim();
+    if (origem) categoriasVistas.add(origem);
+    return {
+      purchasedOn: linha.occurredOn,
+      description: linha.description,
+      descricaoOriginal: linha.descricaoOriginal || linha.description,
+      amountCents: Math.abs(linha.amountCents),
+      installments: 1,
+      sourceCategory: origem,
+      category: ''
+    };
+  });
+
+  const avisos = [...(lido.avisos || [])];
+  if (!categoriasVistas.size) {
+    avisos.push('Esta fatura não traz categoria: as compras entram sem classificação e podem ser categorizadas na tela.');
+  }
+  avisos.push('Tudo na fatura é gasto — nenhum valor entra como receita.');
+  return { compras, categoriasVistas: [...categoriasVistas], avisos, formato: 'planilha' };
+}
+
 /** Lê a fatura e devolve as compras, com a categoria do emissor quando existe.
  *
  *  categoriasConhecidas: nomes que o emissor usa e que já apareceram antes —
@@ -72,6 +106,12 @@ function pareceTituloDeCategoria(linha) {
 function lerFaturaCartao(texto, { categoriasConhecidas = [] } = {}) {
   const linhas = String(texto || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   if (!linhas.length) return { compras: [], categoriasVistas: [], avisos: ['A fatura não tem texto legível.'] };
+
+  // Nem toda fatura vem em PDF. O Nubank, por exemplo, exporta CSV com colunas
+  // date, title, amount e às vezes category — e ali a data não abre a linha
+  // nem o valor usa vírgula decimal, então o caminho do PDF não enxerga nada.
+  const comoTabela = lerFaturaDeTabela(texto);
+  if (comoTabela) return comoTabela;
 
   const ano = (() => {
     for (const linha of linhas.slice(0, 40)) {
@@ -170,6 +210,6 @@ function aplicarDePara(compras, mapa = {}) {
   }));
 }
 
-const GFPFatura = { lerFaturaCartao, aplicarDePara, pareceTituloDeCategoria, categoriaDoTitulo };
+const GFPFatura = { lerFaturaCartao, lerFaturaDeTabela, aplicarDePara, pareceTituloDeCategoria, categoriaDoTitulo };
 if (typeof window !== 'undefined') window.GFPFatura = GFPFatura;
 if (typeof module !== 'undefined' && module.exports) module.exports = GFPFatura;

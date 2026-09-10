@@ -128,7 +128,9 @@ const PALAVRAS = {
   valor: ['valor', 'amount', 'value', 'montante', 'valor (r$)', 'valor r$', 'valor da compra', 'net_credit_amount', 'transaction_amount', 'valor liquido'],
   credito: ['credito', 'entrada', 'receita', 'net_credit_amount', 'valor credito'],
   debito: ['debito', 'saida', 'despesa', 'net_debit_amount', 'valor debito'],
-  saldo: ['saldo', 'balance', 'saldo (r$)']
+  saldo: ['saldo', 'balance', 'saldo (r$)'],
+  // O CSV de fatura do Nubank traz a categoria do próprio emissor.
+  categoria: ['categoria', 'category', 'classificacao', 'tipo de gasto']
 };
 
 function separarLinha(linha, delimitador) {
@@ -235,12 +237,14 @@ function lerDelimitado(texto) {
     if (centavos === null || centavos === 0) { ignoradas++; continue; }
 
     const bruta = mapa.descricao !== undefined ? campos[mapa.descricao] : '';
+    const categoriaDaOrigem = mapa.categoria !== undefined ? String(campos[mapa.categoria] || '').trim() : '';
     resultado.push({
       occurredOn: data,
       description: limparDescricao(bruta) || 'Lançamento importado',
       descricaoOriginal: String(bruta || '').trim(),
       amountCents: Math.abs(centavos),
       type: centavos > 0 ? 'income' : 'expense',
+      sourceCategory: categoriaDaOrigem,
       identificador: ''
     });
   }

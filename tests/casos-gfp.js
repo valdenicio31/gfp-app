@@ -124,6 +124,36 @@ const CASOS_GFP = [
     });
   }],
 
+  ['fatura em CSV do Nubank é lida como planilha', v => {
+    // O CSV do Nubank não tem data abrindo a linha nem vírgula decimal: o
+    // caminho do PDF não enxergava nada e a importação vinha com 0 compras.
+    const csv = [
+      'date,category,title,amount',
+      '2026-01-05,Restaurante,PADARIA DO ZE,45.90',
+      '2026-01-08,Transporte,UBER TRIP,23.50',
+      '2026-01-12,,MERCADO LIVRE,199.00'
+    ].join('\n');
+    const r = GFPFatura.lerFaturaCartao(csv);
+    v(r.compras.length === 3, `três compras, veio ${r.compras.length}`);
+    v(r.compras[0].amountCents === 4590, `45,90 em centavos, veio ${r.compras[0].amountCents}`);
+    v(r.compras[0].purchasedOn === '2026-01-05', 'data lida da coluna date');
+    v(r.compras[0].sourceCategory === 'Restaurante', 'categoria veio da coluna category');
+    v(r.compras[2].sourceCategory === '', 'linha sem categoria fica em branco');
+    v(r.categoriasVistas.length === 2, 'duas categorias de origem');
+  }],
+
+  ['fatura em CSV com ponto e vírgula e vírgula decimal também entra', v => {
+    const csv = [
+      'Data;Descrição;Valor;Categoria',
+      '05/01/2026;PADARIA DO ZE;45,90;Alimentação',
+      '08/01/2026;UBER TRIP;23,50;Transporte'
+    ].join('\n');
+    const r = GFPFatura.lerFaturaCartao(csv);
+    v(r.compras.length === 2, `duas compras, veio ${r.compras.length}`);
+    v(r.compras[0].amountCents === 4590, 'valor com vírgula decimal');
+    v(r.compras[1].sourceCategory === 'Transporte', 'categoria da coluna');
+  }],
+
   ['de-para traduz a categoria do emissor para a do GFP', v => {
     const compras = [
       { sourceCategory: 'Restaurantes', category: '' },
