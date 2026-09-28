@@ -35,6 +35,8 @@ Trabalho posterior ao desenho das treze fases, feito a partir do uso real:
 | Gráfico mês a mês por ano civil, com seletor de ano | Concluída |
 | Logotipo VIA IA nas telas de navegação | Concluída |
 | Matemática dos empréstimos — cronograma, juros e antecipação | Concluída |
+| Manual de operação revisado, com impressão completa | Concluída |
+| Versionamento do sistema — começa na 1.0.0 (ver `CHANGELOG.md`) | Concluída |
 | Módulo de empréstimos — banco, API e tela | **Não iniciado** |
 
 ## O que falta

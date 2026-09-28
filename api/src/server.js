@@ -10,6 +10,10 @@ import { migrate, query, transaction } from './db.js';
 import { allowRoles, requireAuth, signToken } from './auth.js';
 import nodemailer from 'nodemailer';
 import passwordResetRouter from './password-reset.js';
+import { readFileSync } from 'node:fs';
+
+// Versão publicada: a mesma do versao.js do site (o teste confere).
+const VERSAO = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 const app = express();
 const port = Number(process.env.PORT || 10000);
@@ -35,9 +39,9 @@ app.use('/auth/password-reset', passwordResetRouter);
 app.get('/health', async (_req, res) => {
   try {
     await query('select 1');
-    res.json({ status: 'ok', service: 'gfp-familiar-api' });
+    res.json({ status: 'ok', service: 'gfp-familiar-api', version: VERSAO });
   } catch {
-    res.status(503).json({ status: 'degraded', service: 'gfp-familiar-api' });
+    res.status(503).json({ status: 'degraded', service: 'gfp-familiar-api', version: VERSAO });
   }
 });
 

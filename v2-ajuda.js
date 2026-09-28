@@ -112,13 +112,27 @@ const MANUAL = [
     dicas: ['Com mais de um filtro ativo aparece o botão <b>Limpar todos os filtros</b>, que zera tudo de uma vez.']
   },
   {
+    id: 'transferencia', titulo: 'Transferência entre contas', emoji: '🔁',
+    resumo: 'Dinheiro que muda de uma conta sua para outra. Não é gasto nem receita.',
+    passos: [
+      'Em Lançamentos, clique em <b>🔁 Transferência</b>. É preciso ter pelo menos duas contas cadastradas.',
+      'Escolha a conta de <b>origem</b>, a conta de <b>destino</b>, a data e o valor. A descrição é opcional.',
+      'Clique em <b>Registrar transferência</b>. O saldo sai de uma conta e entra na outra no mesmo instante.'
+    ],
+    dicas: [
+      'Use sempre este botão para passar dinheiro da corrente para a poupança, pagar a fatura com outra conta etc. Lançado como saída e entrada comuns, o valor apareceria duas vezes e inflaria os totais da Central.',
+      'Na importação de extrato, se o movimento for entre duas contas suas, marque como transferência em vez de receita ou despesa.'
+    ]
+  },
+  {
     id: 'importar', titulo: 'Importar o extrato do banco', emoji: '📥',
     resumo: 'Arraste o arquivo do banco e o sistema faz o resto — inclusive a classificação.',
-    imagem: 'ajuda/importar.webp', legenda: 'Aceita OFX e CSV. Arraste o arquivo ou clique para escolher.',
+    imagem: 'ajuda/importar.webp', legenda: 'Aceita OFX, CSV, TXT e PDF. Arraste o arquivo ou clique para escolher.',
     passos: [
-      'Em Lançamentos, clique em <b>Importar extrato</b>.',
-      'Baixe no seu banco o extrato em <b>OFX</b> (o melhor formato) ou <b>CSV</b>. Funciona com Nubank, Itaú, Bradesco, Banco do Brasil, Caixa, Inter, Santander e outros.',
-      'Arraste o arquivo para a área indicada e escolha a <b>conta</b> que corresponde àquele extrato.',
+      'Em Lançamentos, clique em <b>Importar de qualquer banco</b>.',
+      'Baixe no seu banco o extrato em <b>OFX</b> (o melhor formato), <b>CSV</b> ou <b>PDF</b>. Funciona com Nubank, Itaú, Bradesco, Banco do Brasil, Caixa, Inter, Santander, Mercado Pago, PagBank e outros.',
+      'Arraste o arquivo para a área indicada e escolha a <b>conta</b> que corresponde àquele extrato. Se ainda não existir nenhuma conta, o sistema oferece cadastrar ali mesmo.',
+      'Se o PDF estiver <b>protegido por senha</b> (o Itaú faz isso), o sistema pede a senha que o banco usa para abrir o documento. Ela serve só para ler o arquivo e não fica guardada.',
       'O sistema mostra a prévia: cada linha com data, descrição, valor, e a <b>categoria e o fornecedor que ele descobriu</b>.',
       'Onde ele não tiver certeza, aparece um aviso para você ensinar. Você responde uma vez e ele aplica em todas as linhas parecidas.',
       'Confirme. Pronto: os lançamentos entram e o saldo se ajusta.'
@@ -126,7 +140,26 @@ const MANUAL = [
     dicas: [
       '<b>Pode importar o mesmo arquivo duas vezes sem medo.</b> O sistema reconhece o que já entrou e não duplica nada.',
       'Importou e depois cadastrou um fornecedor novo? Use <b>Classificar pendentes</b> em Lançamentos para aplicar o cadastro novo nos lançamentos que ficaram sem categoria.',
-      'Se o extrato vier com data no formato estranho, o sistema tenta os dois jeitos (dia/mês e mês/dia) e usa o que faz sentido.'
+      'Se o extrato vier com data no formato estranho, o sistema tenta os dois jeitos (dia/mês e mês/dia) e usa o que faz sentido.',
+      '<b>PDF é lido por interpretação e pode errar.</b> Na prévia, use <b>Baixar como CSV</b>: abre no Excel, você corrige o que precisar e importa o CSV corrigido.',
+      'Limite de 8 MB por arquivo. Extrato muito longo? Exporte um período menor.'
+    ]
+  },
+  {
+    id: 'fatura', titulo: 'Importar a fatura do cartão', emoji: '🧾',
+    resumo: 'A fatura inteira de uma vez, já com as categorias que o próprio cartão usa.',
+    imagem: 'ajuda/cartoes.webp', legenda: 'O botão de importar fatura fica no painel de Cartões.',
+    passos: [
+      'Abra <b>Cartões</b> e clique em <b>Importar fatura</b>.',
+      'Escolha o cartão e o arquivo da fatura: <b>PDF</b> (mesmo protegido por senha) ou <b>CSV</b>, do jeito que o banco entrega.',
+      'Na prévia aparecem as compras, o <b>total da fatura</b> e a lista <b>Categorias desta fatura</b>, que são as categorias que o banco deu a cada compra.',
+      'Diga uma vez para qual categoria do GFP vai cada categoria do banco (por exemplo, "Supermercado" do Itaú → "Mercado"). Esse de-para fica gravado no cartão.',
+      'Confira o total com o valor da fatura do banco e confirme a importação.'
+    ],
+    dicas: [
+      'Na próxima fatura do mesmo cartão o de-para já vem pronto. Você só responde o que for novidade.',
+      'Ensinou errado? Use <b>Esquecer categorias deste cartão</b> e o cartão volta a perguntar do zero.',
+      'Compra que o banco mandou sem categoria entra em <b>Outros</b>, e você reclassifica depois em Lançamentos.'
     ]
   },
   {
@@ -267,11 +300,26 @@ const MANUAL = [
       '<b>A primeira tela demora para carregar</b> — o servidor hiberna quando fica sem uso e leva até um minuto para acordar. Da segunda vez em diante é rápido.',
       '<b>A tela parece antiga depois de uma atualização</b> — segure <kbd>Ctrl</kbd> e aperte <kbd>F5</kbd> (no Mac, <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>).',
       '<b>Aparece um aviso vermelho "não consegui carregar"</b> — clique em <b>Tentar de novo</b>. Se insistir, é sinal de internet instável ou servidor acordando.',
-      '<b>A importação recusou o arquivo</b> — confirme que é OFX ou CSV de extrato. Alguns bancos entregam PDF, que não serve; procure a opção de exportar em OFX.',
+      '<b>A importação recusou o arquivo</b> — confirme que é o extrato (OFX, CSV, TXT ou PDF) e que tem menos de 8 MB. Se o PDF vier como imagem digitalizada, exporte em OFX ou CSV pelo aplicativo do banco.',
+      '<b>A senha do PDF não abre</b> — é a senha que o banco definiu para o documento (no Itaú, costuma ser parte do CPF), não a senha do GFP.',
       '<b>Um lançamento veio sem categoria</b> — cadastre o fornecedor em Cadastros e use <b>Classificar pendentes</b>.',
       '<b>O saldo não bate com o banco</b> — confira se importou o extrato inteiro do período e se não lançou nada duas vezes na mão. O filtro por coluna ajuda a achar duplicidade.'
     ],
-    dicas: ['Nada do que você faz aqui é irreversível sem aviso. Toda exclusão mostra antes o que vai apagar e o efeito no saldo.']
+    dicas: [
+      'Nada do que você faz aqui é irreversível sem aviso. Toda exclusão mostra antes o que vai apagar e o efeito no saldo.',
+      'Ao pedir ajuda pelo e-mail, informe a <b>versão</b> que aparece no rodapé da tela. Assim sabemos exatamente qual sistema você está usando.'
+    ]
+  },
+  {
+    id: 'versoes', titulo: 'Novidades e versões', emoji: '🏷️',
+    resumo: 'O que mudou em cada versão do GFP Familiar, da mais nova para a mais antiga.',
+    especial: 'versoes',
+    passos: [
+      'A versão em uso aparece no rodapé e embaixo da licença, na barra lateral. Clique nela para abrir esta página.',
+      'O número tem três partes, como <b>1.2.3</b>. A primeira muda quando o sistema muda de jeito de usar; a segunda, quando chega funcionalidade nova; a terceira, quando corrigimos algum erro.',
+      'Quando sai versão nova, basta abrir o sistema de novo. Se a tela parecer antiga, segure <kbd>Ctrl</kbd> e aperte <kbd>F5</kbd>.'
+    ],
+    dicas: ['Seus dados não mudam de lugar entre versões: o que você lançou continua lá.']
   }
 ];
 
@@ -298,6 +346,10 @@ function desenharAjuda() {
       <small>AJUDA</small>
       <h2>Manual de operação</h2>
       <p>Como usar cada tela do GFP Familiar, passo a passo, com dicas de quem já tropeçou antes.</p>
+      <div class="aju-meta">
+        <button type="button" class="aju-versao" data-secao="versoes">🏷️ Versão ${seguro(versaoAtual().numero)} · ${seguro(ajuDataBr(versaoAtual().data))}</button>
+        <button type="button" class="aju-imprimir" id="ajuImprimir">🖨️ Imprimir manual completo</button>
+      </div>
     </div>
 
     <div class="aju-corpo">
@@ -324,11 +376,7 @@ function desenharAjuda() {
           ${secao.legenda ? `<figcaption>${seguro(secao.legenda)}</figcaption>` : ''}
         </figure>` : ''}
 
-        <ol class="aju-passos">${(secao.passos || []).map(passo => `<li><span>${passo}</span></li>`).join('')}</ol>
-
-        ${(secao.dicas || []).length ? `<div class="aju-dicas">
-          ${secao.dicas.map(dica => `<div class="aju-dica"><i>💡</i><span>${dica}</span></div>`).join('')}
-        </div>` : ''}
+        ${conteudoSecao(secao)}
 
         <div class="aju-navega">
           ${anterior(secao) ? `<button data-secao="${anterior(secao).id}">← ${seguro(anterior(secao).titulo)}</button>` : '<span></span>'}
@@ -339,6 +387,66 @@ function desenharAjuda() {
 
   ligarEventosAjuda();
 }
+
+const versaoAtual = () => window.GFP_VERSAO || { numero: '—', data: '' };
+const ajuDataBr = iso => (iso ? iso.split('-').reverse().join('/') : '');
+const ROTULO_ITEM = { novo: ['Novo', 'novo'], melhoria: ['Melhoria', 'melhoria'], correcao: ['Correção', 'correcao'] };
+
+/* Histórico de versões: vem do versao.js, a mesma fonte do número no rodapé. */
+function historicoHtml() {
+  const historico = window.GFP_HISTORICO || [];
+  if (!historico.length) return '';
+  return `<div class="aju-historico">${historico.map((v, i) => `
+    <section class="aju-release${i === 0 ? ' atual' : ''}">
+      <header><b>Versão ${seguro(v.numero)}</b>${i === 0 ? '<em>em uso</em>' : ''}<small>${seguro(ajuDataBr(v.data))}</small></header>
+      <h4>${seguro(v.titulo)}</h4>
+      ${v.resumo ? `<p>${seguro(v.resumo)}</p>` : ''}
+      <ul>${(v.itens || []).map(([tipo, texto]) => {
+        const [rotulo, classe] = ROTULO_ITEM[tipo] || ROTULO_ITEM.novo;
+        return `<li><span class="aju-tag ${classe}">${rotulo}</span>${seguro(texto)}</li>`;
+      }).join('')}</ul>
+    </section>`).join('')}</div>`;
+}
+
+function conteudoSecao(secao) {
+  return `
+    <ol class="aju-passos">${(secao.passos || []).map(passo => `<li><span>${passo}</span></li>`).join('')}</ol>
+    ${(secao.dicas || []).length ? `<div class="aju-dicas">
+      ${secao.dicas.map(dica => `<div class="aju-dica"><i>💡</i><span>${dica}</span></div>`).join('')}
+    </div>` : ''}
+    ${secao.especial === 'versoes' ? historicoHtml() : ''}`;
+}
+
+/* Impressão: monta o manual inteiro numa área própria, que só aparece no papel
+   (ou no "Salvar como PDF" do navegador), e chama a impressão. */
+function imprimirManual() {
+  let area = document.querySelector('#ajuImpressao');
+  if (!area) {
+    area = document.createElement('div');
+    area.id = 'ajuImpressao';
+    document.body.appendChild(area);
+  }
+  const v = versaoAtual();
+  area.innerHTML = `
+    <div class="imp-capa">
+      <h1>GFP Familiar — Manual de operação</h1>
+      <p>Versão ${seguro(v.numero)} · ${seguro(ajuDataBr(v.data))}</p>
+      <ol>${MANUAL.map(s => `<li>${s.emoji} ${seguro(s.titulo)}</li>`).join('')}</ol>
+    </div>
+    ${MANUAL.map(s => `
+      <section class="imp-secao">
+        <h2>${s.emoji} ${seguro(s.titulo)}</h2>
+        <p class="imp-resumo">${seguro(s.resumo)}</p>
+        ${s.imagem ? `<figure><img src="${s.imagem}" alt=""><figcaption>${seguro(s.legenda || '')}</figcaption></figure>` : ''}
+        ${conteudoSecao(s)}
+      </section>`).join('')}
+    <p class="imp-rodape">Dúvidas: contato@viaiasolucoes.com · GFP Familiar ${seguro(v.numero)}</p>`;
+  document.body.classList.add('imprimindo-manual');
+  const imagens = [...area.querySelectorAll('img')];
+  Promise.all(imagens.map(img => img.complete ? null : new Promise(ok => { img.onload = img.onerror = ok; })))
+    .then(() => window.print());
+}
+window.addEventListener('afterprint', () => document.body.classList.remove('imprimindo-manual'));
 
 const indiceDe = secao => MANUAL.findIndex(s => s.id === secao.id);
 const anterior = secao => MANUAL[indiceDe(secao) - 1] || null;
@@ -351,6 +459,7 @@ function ligarEventosAjuda() {
     desenharAjuda();
     document.querySelector('#telaAjuda .aju-texto')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
+  tela.querySelector('#ajuImprimir')?.addEventListener('click', imprimirManual);
   const busca = tela.querySelector('#ajuBusca');
   if (busca) {
     busca.addEventListener('input', () => {
@@ -375,5 +484,7 @@ window.abrirTelaAjuda = abrirTelaAjuda;
 window.abrirAjudaEm = id => { if (MANUAL.some(s => s.id === id)) aju.atual = id; abrirTelaAjuda(); };
 
 document.querySelector('[data-tela="ajuda"]')?.addEventListener('click', abrirTelaAjuda);
+document.querySelectorAll('[data-abrir-versoes]').forEach(botao =>
+  botao.addEventListener('click', () => window.abrirAjudaEm('versoes')));
 document.querySelectorAll('.sidebar nav button:not([data-tela="ajuda"])').forEach(botao =>
   botao.addEventListener('click', fecharTelaAjuda));

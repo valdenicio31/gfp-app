@@ -4,8 +4,10 @@
       precisa vir do servidor, senão a tela mostra saldo velho;
    2) páginas vêm da rede primeiro, com o cache só como reserva quando está sem internet;
    3) arquivos estáticos vêm do cache e são atualizados por trás. */
-const CACHE = 'gfp-v2';
-const ESSENCIAIS = ['/', '/v2.html', '/manifest.webmanifest', '/favicon.svg', '/icone-192.png', '/apple-touch-icon.png'];
+// Acompanha a versão do versao.js: trocar o número descarta o cache antigo
+// nos aparelhos dos clientes e força as telas novas.
+const CACHE = 'gfp-1.0.0';
+const ESSENCIAIS = ['/', '/v2.html', '/versao.js', '/manifest.webmanifest', '/favicon.svg', '/icone-192.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', evento => {
   evento.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ESSENCIAIS)).then(() => self.skipWaiting()));

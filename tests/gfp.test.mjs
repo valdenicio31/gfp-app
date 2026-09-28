@@ -31,3 +31,20 @@ for (const [nome, executar] of contexto.CASOS_GFP) {
     assert.deepEqual(falhas, [], falhas.join(' · '));
   });
 }
+
+/* Versão: o número do site (versao.js), da API (package.json) e do cache do
+   service worker (sw.js) precisam andar juntos. Se um ficar para trás, o
+   cliente vê uma versão no rodapé e roda outra. */
+test('versão é a mesma no site, na API e no service worker', () => {
+  const ctx = vm.createContext({});
+  ctx.window = ctx;
+  vm.runInContext(readFileSync(daRaiz('versao.js'), 'utf8'), ctx, { filename: 'versao.js' });
+  const site = ctx.GFP_VERSAO.numero;
+  const api = JSON.parse(readFileSync(daRaiz('api/package.json'), 'utf8')).version;
+  const sw = readFileSync(daRaiz('sw.js'), 'utf8').match(/const CACHE = 'gfp-([^']+)'/)?.[1];
+  assert.match(site, /^\d+\.\d+\.\d+$/, 'versão fora do padrão X.Y.Z');
+  assert.equal(api, site, 'api/package.json diferente do versao.js');
+  assert.equal(sw, site, 'cache do sw.js diferente do versao.js');
+  assert.equal(ctx.GFP_HISTORICO[0].numero, site, 'a versão atual precisa ser a primeira do histórico');
+  assert.equal(ctx.GFP_HISTORICO[0].data, ctx.GFP_VERSAO.data, 'data da versão diferente da do histórico');
+});
