@@ -11,6 +11,7 @@ import { allowRoles, requireAuth, signToken } from './auth.js';
 import nodemailer from 'nodemailer';
 import passwordResetRouter from './password-reset.js';
 import { readFileSync } from 'node:fs';
+import { registrarEmprestimos } from './emprestimos.js';
 
 // Versão publicada: a mesma do versao.js do site (o teste confere).
 const VERSAO = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -1779,6 +1780,9 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   });
 });
 
+
+// Empréstimos: rotas em emprestimos.js, com o banco e a autenticação daqui.
+registrarEmprestimos(app, { query, transaction, requireAuth, allowRoles, contaGravavel, isUuid });
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 app.use((error, _req, res, _next) => {

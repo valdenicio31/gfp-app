@@ -40,7 +40,8 @@ export async function migrate() {
     '../sql/011_agenda.sql',
     '../sql/012_card_invoice_import.sql',
     '../sql/013_transferencias.sql',
-    '../sql/014_compra_sem_categoria.sql'
+    '../sql/014_compra_sem_categoria.sql',
+    '../sql/015_emprestimos.sql'
   ];
   for (const path of migrations) {
     const fullPath = fileURLToPath(new URL(path, import.meta.url));

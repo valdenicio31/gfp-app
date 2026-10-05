@@ -665,3 +665,64 @@ footer .versao-link:hover{color:var(--purple)}
   #ajuImpressao .aju-release{border:1px solid #ddd;padding:8pt;margin:8pt 0;page-break-inside:avoid}
   #ajuImpressao .imp-rodape{margin-top:20pt;color:#666;font-size:9.5pt}
 }
+
+/* ---------- empréstimos ---------- */
+body.tela-emprestimos main>*:not(header):not(#telaEmprestimos){display:none!important}
+body:not(.tela-emprestimos) #telaEmprestimos{display:none}
+#telaEmprestimos{display:flex;flex-direction:column;gap:18px;margin-top:22px}
+#telaEmprestimos .met-resumo small{color:var(--muted);font-size:12px}
+.emp-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.emp-contrato{border:1px solid var(--border);border-radius:14px;padding:15px 16px;display:flex;flex-direction:column;gap:11px;background:#fdfcff;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.emp-contrato:hover,.emp-contrato:focus-visible{border-color:#cdb8fa;box-shadow:0 0 0 3px #7c3aed14;outline:0}
+.emp-contrato.encerrado{opacity:.7}
+.emp-topo{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.emp-topo b{display:block;font-size:15.5px}
+.emp-topo small{color:var(--muted);font-size:12.5px}
+.emp-selo{font-size:12px;font-weight:900;border-radius:99px;padding:4px 10px;background:#f1ebff;color:var(--purple);white-space:nowrap;font-variant-numeric:tabular-nums}
+.emp-selo.settled{background:#ecfff2;color:#15803d}
+.emp-selo.cancelled{background:#f3f1f6;color:var(--muted)}
+.emp-numeros{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.emp-numeros span{display:block;color:var(--muted);font-size:12px;font-weight:600}
+.emp-numeros strong{font-size:15.5px;font-variant-numeric:tabular-nums}
+.emp-alerta{margin:0;font-size:12.5px;font-weight:800;color:#b91c1c}
+.emp-voltar{display:block;border:0;background:none;color:var(--purple);font:800 13px/1 inherit;padding:0 0 10px;cursor:pointer}
+.emp-acoes-contrato{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.emp-acoes-contrato button{display:flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:10px;padding:9px 13px;font:800 12.5px/1 inherit;cursor:pointer;color:var(--text)}
+.emp-acoes-contrato button:hover{border-color:var(--purple);color:var(--purple)}
+.emp-acoes-contrato button.remover:hover{border-color:var(--red);color:var(--red)}
+.emp-tabela-rolo{overflow-x:auto}
+.emp-tabela{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.emp-tabela th{text-align:left;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.emp-tabela td{padding:9px 10px;border-bottom:1px solid #f1eef6;vertical-align:middle;white-space:nowrap}
+.emp-tabela .num{text-align:right}
+.emp-tabela td small{display:block;color:var(--muted);font-size:11.5px}
+.emp-tabela tr.paga td{color:#7a728a}
+.emp-tabela tr.atrasada td{background:#fff7f7}
+.emp-tabela .lanc-acoes{gap:6px;align-items:center}
+.emp-tabela .lanc-acoes button{font:800 12px/1 inherit}
+.emp-pagar{border:0!important;background:var(--purple)!important;color:#fff!important;border-radius:8px;padding:7px 11px!important}
+.emp-situacao{font-weight:800;font-size:12px;border-radius:99px;padding:3px 9px;display:inline-block}
+.emp-situacao.paga{background:#ecfff2;color:#15803d}
+.emp-situacao.atrasada{background:#ffeef0;color:#b91c1c}
+.emp-situacao.breve{background:#fff5d8;color:#9a6500}
+.emp-situacao.aberta{background:#f3f1f6;color:var(--muted)}
+.emp-tabela.mini{font-size:12.5px}
+.emp-tabela.mini tr.reticencias td{text-align:center;color:var(--muted)}
+.lanc-caixa.emp-caixa{max-width:720px}
+.emp-previa{background:var(--bg);border-radius:12px;padding:14px;display:grid;gap:12px}
+.emp-previa>span{color:var(--muted);font-size:13px}
+.emp-previa-numeros{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.emp-previa-numeros span{display:block;color:var(--muted);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.emp-previa-numeros strong{font-size:16px;font-variant-numeric:tabular-nums}
+.emp-previa-numeros small{display:block;color:var(--muted);font-size:11.5px}
+.emp-escolha{display:grid;gap:8px}
+.emp-escolha>b{font-size:13.5px}
+.lanc-caixa label.emp-opcao{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);font-weight:600}
+.lanc-caixa label.emp-opcao:has(input:checked){border-color:var(--purple);background:#faf7ff}
+.emp-opcao input{accent-color:var(--purple);flex:none}
+.emp-opcao span{flex:1;display:grid;gap:2px}
+.emp-opcao small{color:var(--muted);font-weight:500;font-size:12.5px}
+.emp-opcao strong{font-variant-numeric:tabular-nums}
+.emp-dica{margin:0;color:var(--muted);font-size:12.5px;text-transform:none;letter-spacing:0;font-weight:500}
+@media(max-width:700px){.emp-previa-numeros{grid-template-columns:1fr 1fr}.emp-lista{grid-template-columns:1fr}}
+.lanc-caixa .campos[hidden],.lanc-caixa label[hidden]{display:none}

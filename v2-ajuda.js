@@ -258,6 +258,38 @@ const MANUAL = [
     dicas: ['Cada adulto vê e lança no próprio cartão; o administrador vê os cartões de toda a família.']
   },
   {
+    id: 'emprestimos', titulo: 'Empréstimos e financiamentos', emoji: '🏦',
+    resumo: 'Consignado, pessoal, CDC ou financiamento: o contrato inteiro, parcela por parcela.',
+    imagem: 'ajuda/emprestimos.webp', legenda: 'Cada contrato mostra o saldo devedor, a próxima parcela e se há alguma em atraso.',
+    passos: [
+      'Em <b>Empréstimos</b>, clique em <b>Novo empréstimo</b> e informe nome, banco, tipo, valor emprestado e número de parcelas.',
+      'Em <b>Eu sei</b>, escolha o que você tem em mãos: <b>a taxa de juros</b> ou <b>o valor da parcela</b>. Com a parcela, o sistema descobre a taxa sozinho.',
+      'Informe a data da primeira parcela e, se quiser, a conta que paga. A prévia mostra na hora a parcela, a taxa ao mês e ao ano, o total a pagar e os juros do contrato.',
+      'Contrato antigo? O campo <b>Parcelas já pagas antes de hoje</b> já vem com as que venceram. Elas entram como pagas, sem mexer em nenhuma conta.',
+      'Clique em um contrato para ver o cronograma completo: vencimento, parcela, juros, amortização e saldo depois de cada uma.'
+    ],
+    dicas: [
+      'O cálculo é o da Tabela Price, o mesmo que os bancos usam. Se o boleto ou o contrato trouxer um valor ou uma data diferente, corrija a parcela pelo lápis da linha.',
+      'Contrato quitado aparece como <b>Quitado</b> sozinho quando a última parcela é paga. Para um contrato renegociado ou encerrado antes, use <b>Marcar como cancelado</b>.'
+    ]
+  },
+  {
+    id: 'emprestimo-pagar', titulo: 'Pagar parcela sem lançar duas vezes', emoji: '🔗',
+    resumo: 'O sistema procura o débito no extrato antes de criar um lançamento novo.',
+    imagem: 'ajuda/emprestimos-pagar.webp', legenda: 'Quando o débito já veio no extrato, basta vincular: nada entra duas vezes no mês.',
+    passos: [
+      'No cronograma, clique em <b>Pagar</b> na parcela.',
+      'Se o extrato já foi importado, o sistema mostra o débito do mesmo valor perto do vencimento (até 15 dias antes ou depois). Escolha-o e clique em <b>Dar baixa</b>: a parcela passa a apontar para esse lançamento.',
+      'Se não houver débito, escolha <b>Criar o lançamento de despesa</b>: o valor sai da conta, com a categoria Empréstimos e o banco como fornecedor.',
+      'Para antecipar, informe o valor com desconto que o banco cobrou. A diferença aparece como <b>economia com antecipação</b>.',
+      'Errou? <b>Desfazer</b> volta a parcela para em aberto. O lançamento só é apagado se foi o sistema que o criou; o que veio do extrato continua lá.'
+    ],
+    dicas: [
+      'A melhor ordem é importar o extrato primeiro e dar baixa depois: assim o pagamento é sempre vinculado, e o saldo da conta fica igual ao do banco.',
+      'Um lançamento paga uma parcela só. O mesmo débito não aparece de novo para outra parcela nem para uma conta do Calendário.'
+    ]
+  },
+  {
     id: 'usuarios', titulo: 'Usuários e perfis', emoji: '👥',
     resumo: 'Quatro níveis de acesso, para cada um ver só o que deve ver.',
     imagem: 'ajuda/usuarios.webp', legenda: 'O administrador cadastra o familiar e escolhe o perfil; a senha quem cria é o próprio familiar.',
@@ -472,7 +504,7 @@ function ligarEventosAjuda() {
 }
 
 function abrirTelaAjuda() {
-  document.body.classList.remove('tela-lancamentos', 'tela-cadastros', 'tela-metas', 'tela-calendario', 'tela-central');
+  document.body.classList.remove('tela-lancamentos', 'tela-cadastros', 'tela-metas', 'tela-calendario', 'tela-central', 'tela-emprestimos');
   document.body.classList.add('tela-ajuda');
   document.querySelectorAll('.sidebar nav button').forEach(botao =>
     botao.classList.toggle('active', botao.dataset.tela === 'ajuda'));

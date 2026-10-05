@@ -10,9 +10,21 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '1.0.0', data: '2026-09-28' };
+const GFP_VERSAO = { numero: '1.1.0', data: '2026-09-28' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '1.1.0', data: '2026-09-28', titulo: 'Empréstimos e financiamentos',
+    resumo: 'O módulo de empréstimos sai do papel: contrato, cronograma e baixa das parcelas.',
+    itens: [
+      ['novo', 'Tela Empréstimos: consignado, pessoal, CDC, financiamento e cheque especial, com saldo devedor, juros e próxima parcela.'],
+      ['novo', 'Cadastro com prévia do cronograma pela Tabela Price, informando a taxa ou só o valor da parcela.'],
+      ['novo', 'Baixa de parcela que procura o débito no extrato e vincula, sem lançar duas vezes; se não achar, cria a despesa.'],
+      ['novo', 'Antecipação com desconto: a diferença aparece como economia.'],
+      ['novo', 'Contratos antigos: as parcelas que já venceram entram como pagas, sem mexer nas contas.'],
+      ['melhoria', 'Manual com duas seções novas sobre empréstimos.']
+    ]
+  },
   {
     numero: '1.0.0', data: '2026-09-28', titulo: 'Primeira versão oficial',
     resumo: 'Marco zero do versionamento: tudo o que já estava no ar passa a ser a versão 1.0.',

@@ -37,13 +37,13 @@ Trabalho posterior ao desenho das treze fases, feito a partir do uso real:
 | Matemática dos empréstimos — cronograma, juros e antecipação | Concluída |
 | Manual de operação revisado, com impressão completa | Concluída |
 | Versionamento do sistema — começa na 1.0.0 (ver `CHANGELOG.md`) | Concluída |
-| Módulo de empréstimos — banco, API e tela | **Não iniciado** |
+| Módulo de empréstimos — banco, API e tela (versão 1.1.0) | Concluída |
 
 ## O que falta
 
-1. **Módulo de empréstimos.** O cálculo está pronto e testado; faltam a tabela,
-   os endpoints e a tela. Depende de uma definição: parcela paga vira lançamento
-   de despesa na conta, ou o módulo fica isolado do fluxo de caixa?
+1. ~~**Módulo de empréstimos.**~~ Entregue na 1.1.0. Decisão: a parcela paga é
+   vinculada ao débito do extrato quando ele existe, e só vira lançamento novo
+   quando não existe.
 2. **Cobertura de testes na API.** Os 15 casos atuais cobrem o núcleo que roda
    no navegador. Nenhuma rota do Express é exercitada por teste.
 3. **Homologação comercial.** Fase 13 publicada, sem aceite formal registrado.

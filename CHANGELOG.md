@@ -25,6 +25,17 @@ Cada publicação altera, no mesmo commit:
 
 ---
 
+## 1.1.0 — 28/09/2026 · Empréstimos e financiamentos
+
+- Tela Empréstimos: consignado, pessoal, CDC, financiamento e cheque especial, com saldo devedor, juros e próxima parcela.
+- Cadastro com prévia do cronograma pela Tabela Price, informando a taxa ou só o valor da parcela.
+- Baixa de parcela no modo "vincular ou criar": procura o débito no extrato e liga a parcela a ele; se não achar, cria a despesa na conta.
+- Antecipação com desconto registrada como economia.
+- Contratos antigos: parcelas vencidas entram como pagas, sem mexer nas contas.
+- Banco: migração `015_emprestimos.sql` (tabelas `loans` e `loan_installments`).
+- API: rotas `/loans` em `api/src/emprestimos.js`, com testes de ponta a ponta contra PostgreSQL (`GFP_TEST_PG`).
+- Manual: seções "Empréstimos e financiamentos" e "Pagar parcela sem lançar duas vezes".
+
 ## 1.0.0 — 28/09/2026 · Primeira versão oficial
 
 Marco zero do versionamento: tudo o que já estava no ar passa a ser a versão 1.0.

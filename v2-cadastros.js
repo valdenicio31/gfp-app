@@ -418,7 +418,7 @@ function ligarEventosCadastros() {
 /* ---------- entrada na tela ---------- */
 
 function abrirTelaCadastros() {
-  document.body.classList.remove('tela-lancamentos');
+  document.body.classList.remove('tela-lancamentos', 'tela-emprestimos');
   document.body.classList.add('tela-cadastros');
   document.querySelectorAll('.sidebar nav button').forEach(botao =>
     botao.classList.toggle('active', botao.dataset.tela === 'cadastros'));

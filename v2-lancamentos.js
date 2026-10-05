@@ -771,6 +771,7 @@ document.addEventListener('keydown', evento => {
 /* ---------- entrada na tela ---------- */
 
 function abrirTelaLancamentos() {
+  document.body.classList.remove('tela-emprestimos');
   document.body.classList.add('tela-lancamentos');
   document.querySelectorAll('.sidebar nav button').forEach(botao =>
     botao.classList.toggle('active', botao.dataset.tela === 'lancamentos'));
