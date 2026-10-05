@@ -1,5 +1,5 @@
-/* Central do GFP Familiar: todo número desta tela sai dos lançamentos, da agenda,
-   das metas e do orçamento da própria família. Nada aqui é fixo — quando entra
+/* Central do GFP: todo número desta tela sai dos lançamentos, da agenda,
+   das metas e do orçamento da própria conta. Nada aqui é fixo — quando entra
    uma movimentação, a tela recarrega e os painéis mudam junto. */
 
 const pnl = { dados: null, mes: new Date().getMonth() + 1, ano: new Date().getFullYear(),
@@ -169,7 +169,7 @@ function desenharPainel() {
   alvo.innerHTML = `
     <div class="pnl-topo">
       <div class="lanc-head">
-        <small>PAINEL DA FAMÍLIA</small>
+        <small>SEU PAINEL</small>
         <h2>${MESES_NOME[d.month - 1]} de ${d.year}</h2>
         <p>Tudo aqui vem dos seus lançamentos — a cada movimentação nova, estes números mudam.${pnl.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
       </div>
@@ -184,7 +184,7 @@ function desenharPainel() {
     ${pnl.erro ? `<div class="lanc-falha"><div>${svg('alerta')}<span><b>Os números podem estar velhos</b><small>${seguro(pnl.erro)}</small></span></div><button id="pnlTentarDeNovo">Tentar de novo</button></div>` : ''}
 
     ${semNada ? `<div class="pnl-comeco">
-      <b>Sua família ainda não tem movimentação</b>
+      <b>Você ainda não tem movimentação</b>
       <span>Cadastre uma conta e importe um extrato — no minuto seguinte todos os painéis desta tela se preenchem sozinhos.</span>
       <div><button data-ir="lancamentos">🧾 Ir para Lançamentos</button><button data-ir="cadastros">🗂️ Cadastrar conta</button></div>
     </div>` : ''}
@@ -307,7 +307,7 @@ function desenharPainel() {
             <span>Reserva de emergência</span>
             <b>${d.reserva ? reais(d.reserva.current_cents) : reais(0)}${d.reserva ? ` <small>de ${reais(d.reserva.target_cents)}</small>` : ''}</b>
             <div class="met-barra"><i class="${d.reserva && d.reserva.current_cents >= d.reserva.target_cents ? 'bom' : ''}" style="width:${d.reserva && d.reserva.target_cents ? Math.min(Math.round((d.reserva.current_cents / d.reserva.target_cents) * 100), 100) : 0}%"></i></div>
-            <small>${d.reserva ? 'o colchão da família' : 'ainda não criada'}</small>
+            <small>${d.reserva ? 'seu colchão para o imprevisto' : 'ainda não criada'}</small>
           </div>
         </div>
         ${d.orcamento.length ? `<div class="pnl-orcamento">${d.orcamento.map(limite => {

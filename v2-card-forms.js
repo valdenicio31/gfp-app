@@ -9,7 +9,7 @@ function renderRealCards(cards,purchases,scope){
   const totalInvoice=cards.reduce((sum,item)=>sum+Number(item.invoice_cents||0),0);
   const usage=totalLimit?totalInvoice/totalLimit*100:0;
   const state=usage>=75?['red','🔴','Risco elevado']:usage>=50?['yellow','🟡','Atenção moderada']:['green','🟢','Uso saudável'];
-  document.querySelector('#cardsScopeLabel').textContent=scope==='family'?'Dados reais consolidados da família':'Dados reais dos seus cartões';
+  document.querySelector('#cardsScopeLabel').textContent=scope==='family'?'Dados reais de todos os cartões':'Dados reais dos seus cartões';
   document.querySelector('#cardsRisk').className='cards-risk '+state[0];
   document.querySelector('#cardsRisk').textContent=state[1]+' '+state[2];
   document.querySelector('#cardsKpis').innerHTML=[

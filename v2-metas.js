@@ -1,6 +1,6 @@
-/* Metas, orçamento do mês e reserva de emergência do GFP Familiar.
+/* Metas, orçamento do mês e reserva de emergência do GFP.
    As metas guardam dinheiro por objetivo; o orçamento compara o planejado com
-   o realizado dos próprios lançamentos; a reserva é o colchão da família. */
+   o realizado dos próprios lançamentos; a reserva é o colchão para o imprevisto. */
 
 const met = {
   metas: [], orcamento: { items: [], month: 0, year: 0 }, reservas: [],
@@ -15,7 +15,7 @@ const MESES_NOME = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 
 function metasDemonstracao() {
   met.metas = [
-    { id: 'demo-m1', title: 'Viagem em família', emoji: '✈️', target_cents: 2000000, current_cents: 1500000, deadline: '2027-01-31', status: 'active', movimentos: 6, criado_por: 'Alex' },
+    { id: 'demo-m1', title: 'Viagem de férias', emoji: '✈️', target_cents: 2000000, current_cents: 1500000, deadline: '2027-01-31', status: 'active', movimentos: 6, criado_por: 'Alex' },
     { id: 'demo-m2', title: 'Fundo de educação', emoji: '🎓', target_cents: 3000000, current_cents: 800000, deadline: '2028-12-31', status: 'active', movimentos: 3, criado_por: 'Alex' },
     { id: 'demo-m3', title: 'Troca do carro', emoji: '🚗', target_cents: 4000000, current_cents: 4000000, deadline: null, status: 'completed', movimentos: 9, criado_por: 'Andreia' }
   ];
@@ -69,9 +69,9 @@ function desenharMetas() {
 
   alvo.innerHTML = `
     <div class="lanc-head">
-      <small>PLANEJAMENTO DA FAMÍLIA</small>
+      <small>SEU PLANEJAMENTO</small>
       <h2>Metas, orçamento e reserva</h2>
-      <p>Onde vocês querem chegar, quanto pode gastar em cada categoria neste mês, e o colchão para o imprevisto.${met.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
+      <p>Aonde você quer chegar, quanto pode gastar em cada categoria neste mês, e o colchão para o imprevisto.${met.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
     </div>
 
     ${met.erro ? `<div class="lanc-falha"><div>${svg('alerta')}<span><b>Não consegui carregar</b><small>${seguro(met.erro)}</small></span></div><button id="metTentarDeNovo">Tentar de novo</button></div>` : ''}
@@ -85,7 +85,7 @@ function desenharMetas() {
 
     <section class="met-bloco">
       <div class="met-cabeca">
-        <div><h3>🎯 Metas da família</h3><p>Cada depósito fica registrado, com quem fez e quando.</p></div>
+        <div><h3>🎯 Minhas metas</h3><p>Cada depósito fica registrado, com a data.</p></div>
         <button class="met-novo" id="metNovaMeta">${svg('mais', 'ico-s')}Nova meta</button>
       </div>
       ${met.carregando ? '<div class="lanc-vazio">Carregando…</div>' : desenharCartoesDeMeta()}
@@ -106,7 +106,7 @@ function desenharMetas() {
 
     <section class="met-bloco">
       <div class="met-cabeca">
-        <div><h3>🛟 Reserva de emergência</h3><p>O quanto a família já tem para o imprevisto.</p></div>
+        <div><h3>🛟 Reserva de emergência</h3><p>O quanto você já tem para o imprevisto.</p></div>
         ${met.reservas.length ? '' : `<button class="met-novo" id="metNovaReserva">${svg('mais', 'ico-s')}Criar reserva</button>`}
       </div>
       ${desenharReservas()}
@@ -117,7 +117,7 @@ function desenharMetas() {
 
 function desenharCartoesDeMeta() {
   if (!met.metas.length) {
-    return `<div class="lanc-vazio"><b>Nenhuma meta ainda</b>Use “Nova meta” para registrar o primeiro objetivo da família — uma viagem, a troca do carro, o fundo de educação.</div>`;
+    return `<div class="lanc-vazio"><b>Nenhuma meta ainda</b>Use “Nova meta” para registrar o seu primeiro objetivo — uma viagem, a troca do carro, o fundo de educação.</div>`;
   }
   return `<div class="met-metas">${met.metas.map(meta => {
     const usado = pct(meta.current_cents, meta.target_cents);
@@ -156,7 +156,7 @@ function desenharCartoesDeMeta() {
 function desenharOrcamento() {
   const itens = met.orcamento.items || [];
   if (!itens.length) {
-    return `<div class="lanc-vazio"><b>Nenhum limite definido para este mês</b>Defina quanto a família pode gastar em cada categoria e eu comparo com os lançamentos.</div>`;
+    return `<div class="lanc-vazio"><b>Nenhum limite definido para este mês</b>Defina quanto você pode gastar em cada categoria e eu comparo com os lançamentos.</div>`;
   }
   const planejado = itens.reduce((s, i) => s + Number(i.limit_cents), 0);
   const realizado = itens.reduce((s, i) => s + Number(i.realizado_cents), 0);
@@ -184,7 +184,7 @@ function desenharOrcamento() {
 
 function desenharReservas() {
   if (!met.reservas.length) {
-    return `<div class="lanc-vazio"><b>Nenhuma reserva criada</b>A recomendação comum é juntar de três a seis meses de despesa da família.</div>`;
+    return `<div class="lanc-vazio"><b>Nenhuma reserva criada</b>A recomendação comum é juntar de três a seis meses das suas despesas.</div>`;
   }
   return `<div class="met-metas">${met.reservas.map(reserva => {
     const usado = pct(reserva.current_cents, reserva.target_cents);
@@ -249,9 +249,9 @@ function caixaMetas(titulo, sub, campos, aoSalvar, textoBotao = 'Salvar') {
 const valorEmCentavos = campo => Math.round(Number(String(campo.value).replace(/\./g, '').replace(',', '.')) * 100);
 
 function formMeta(meta) {
-  caixaMetas(meta ? 'Alterar meta' : 'Nova meta da família',
-    'O quanto vocês querem juntar e até quando. Os depósitos entram depois, um a um.',
-    `<label class="largo">Objetivo<input id="metTitulo" maxlength="120" value="${seguro(meta?.title || '')}" placeholder="Ex.: Viagem em família"></label>
+  caixaMetas(meta ? 'Alterar meta' : 'Nova meta',
+    'O quanto você quer juntar e até quando. Os depósitos entram depois, um a um.',
+    `<label class="largo">Objetivo<input id="metTitulo" maxlength="120" value="${seguro(meta?.title || '')}" placeholder="Ex.: Viagem de férias"></label>
      <label>Quanto quer juntar (R$)<input id="metAlvo" type="number" step="0.01" min="0.01" value="${meta ? (Number(meta.target_cents) / 100).toFixed(2) : ''}" placeholder="20000,00"></label>
      <label>Prazo (opcional)<input id="metPrazo" type="date" value="${seguro(meta?.deadline || '')}"></label>
      <label>Ícone<input id="metEmoji" maxlength="4" value="${seguro(meta?.emoji || '🎯')}"></label>
@@ -260,7 +260,7 @@ function formMeta(meta) {
       const titulo = fundo.querySelector('#metTitulo').value.trim();
       const alvo = valorEmCentavos(fundo.querySelector('#metAlvo'));
       if (titulo.length < 2) { fundo.querySelector('#metErro').textContent = 'Dê um nome ao objetivo.'; return false; }
-      if (!(alvo > 0)) { fundo.querySelector('#metErro').textContent = 'Informe quanto a família quer juntar.'; return false; }
+      if (!(alvo > 0)) { fundo.querySelector('#metErro').textContent = 'Informe quanto você quer juntar.'; return false; }
       const dados = {
         title: titulo, targetCents: alvo,
         deadline: fundo.querySelector('#metPrazo').value || null,
@@ -312,13 +312,13 @@ function formLimite(item) {
 
 function formReserva(reserva) {
   caixaMetas(reserva ? 'Alterar reserva' : 'Criar reserva de emergência',
-    'A recomendação comum é juntar de três a seis meses de despesa da família.',
+    'A recomendação comum é juntar de três a seis meses das suas despesas.',
     `<label class="largo">Nome<input id="metNome" maxlength="80" value="${seguro(reserva?.name || 'Reserva de emergência')}"></label>
      <label>Quanto quer ter (R$)<input id="metAlvo" type="number" step="0.01" min="0.01" value="${reserva ? (Number(reserva.target_cents) / 100).toFixed(2) : ''}" placeholder="50000,00"></label>
      <label>Aporte por mês (R$)<input id="metAporte" type="number" step="0.01" min="0" value="${reserva ? (Number(reserva.monthly_target_cents) / 100).toFixed(2) : '0'}"></label>`,
     async fundo => {
       const alvo = valorEmCentavos(fundo.querySelector('#metAlvo'));
-      if (!(alvo > 0)) { fundo.querySelector('#metErro').textContent = 'Informe quanto a família quer ter guardado.'; return false; }
+      if (!(alvo > 0)) { fundo.querySelector('#metErro').textContent = 'Informe quanto você quer ter guardado.'; return false; }
       const dados = {
         name: fundo.querySelector('#metNome').value.trim() || 'Reserva de emergência',
         targetCents: alvo,
@@ -342,7 +342,7 @@ async function verMovimentos(meta) {
       ${lista.length ? lista.map(m => `
         <div class="met-mov">
           <span class="${m.type === 'deposit' ? 'entrada' : 'saida'}">${m.type === 'deposit' ? '+' : '−'} ${reais(m.amount_cents).replace('R$', '').trim()}</span>
-          <span>${seguro(m.quem || 'família')}${m.note ? ` · ${seguro(m.note)}` : ''}</span>
+          <span>${seguro(m.quem || 'você')}${m.note ? ` · ${seguro(m.note)}` : ''}</span>
           <small>${dataBr(String(m.created_at).slice(0, 10))}</small>
         </div>`).join('') : '<div class="lanc-vazio">Nenhum movimento registrado ainda.</div>'}
     </div>

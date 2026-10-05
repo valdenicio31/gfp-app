@@ -1,4 +1,4 @@
-/* Importação de extrato do GFP Familiar.
+/* Importação de extrato do GFP.
    Passo 1: escolher o arquivo e a conta. Passo 2: conferir a prévia, com
    fornecedor e categoria sugeridos e os repetidos já desmarcados.
    Passo 3: converter em lançamentos. Usa v2-extrato.js e v2-fornecedores.js. */

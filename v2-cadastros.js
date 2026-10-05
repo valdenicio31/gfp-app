@@ -1,4 +1,4 @@
-/* Cadastros do GFP Familiar: contas, bancos e agências, fornecedores e clientes,
+/* Cadastros do GFP: contas, bancos e agências, fornecedores e clientes,
    e categorias. Tudo livre para o usuário incluir, alterar e apagar.
    Renomear no cadastro arrasta os lançamentos, então nunca ficam dois nomes. */
 
@@ -116,7 +116,7 @@ const vazio = (titulo, dica) => `<div class="lanc-vazio"><b>${titulo}</b>${dica}
 function desenharContas() {
   if (!cad.contas.length) return vazio('Nenhuma conta cadastrada', 'Use “Nova conta” para incluir a conta do banco que você usa.');
   return `
-    <div class="cad-linha cabecalho contas"><span>Conta</span><span>Tipo</span><span>Banco · agência · número</span><span>Visibilidade</span><span style="text-align:right">Saldo</span><span></span></div>
+    <div class="cad-linha cabecalho contas"><span>Conta</span><span>Tipo</span><span>Banco · agência · número</span><span></span><span style="text-align:right">Saldo</span><span></span></div>
     ${cad.contas.map(conta => `
       <div class="cad-linha contas">
         <span class="cad-nome">${seguro(conta.name)}</span>
@@ -124,7 +124,7 @@ function desenharContas() {
         <span class="cad-sub">${conta.bank_name
           ? `${seguro(conta.bank_name)}${conta.branch_number ? ` · ag. ${seguro(conta.branch_number)}` : ''}${conta.account_number ? ` · ${seguro(conta.account_number)}` : ''}`
           : '<em>sem banco vinculado</em>'}</span>
-        <span class="cad-sub">${conta.is_private ? '🔒 só minha' : '👨‍👩‍👧‍👦 da família'}</span>
+        <span class="cad-sub">${conta.is_private ? '🔒 privada' : ''}</span>
         <span class="lanc-valor ${Number(conta.balance_cents) < 0 ? 'saida' : 'entrada'}">${conta.balance_cents === undefined ? '—' : reais(conta.balance_cents)}</span>
         <span class="lanc-acoes">
           <button data-editar-conta="${seguro(conta.id)}" title="Alterar">${svg('lapis', 'ico-s')}</button>
@@ -134,7 +134,7 @@ function desenharContas() {
 }
 
 function desenharBancos() {
-  if (!cad.bancos.length) return vazio('Nenhum banco cadastrado', 'Cadastre o banco e depois as agências que a família usa.');
+  if (!cad.bancos.length) return vazio('Nenhum banco cadastrado', 'Cadastre o banco e depois as agências que você usa.');
   return cad.bancos.map(banco => `
     <div class="cad-banco">
       <div class="cad-banco-topo">
@@ -245,7 +245,7 @@ function formConta(conta) {
      <label>Agência<select id="cadAgencia"><option value="">(sem agência)</option>${agencias.map(([id, texto]) => `<option value="${seguro(id)}" ${conta?.branch_id === id ? 'selected' : ''}>${seguro(texto)}</option>`).join('')}</select></label>
      ${campo('cadNumero', 'Número da conta', conta?.account_number || '', 'maxlength="30" placeholder="Ex.: 12345-6"')}
      ${conta ? '' : campo('cadSaldo', 'Saldo inicial (R$)', '0', 'type="number" step="0.01"')}
-     <label class="largo cad-checkbox"><input type="checkbox" id="cadPrivada" ${conta?.is_private ? 'checked' : ''}>Conta só minha (não aparece para o resto da família)</label>`,
+     <label class="largo cad-checkbox" hidden><input type="checkbox" id="cadPrivada" ${conta?.is_private ? 'checked' : ''}>Conta privada</label>`,
     async fundo => {
       const nome = fundo.querySelector('#cadNome').value.trim();
       if (nome.length < 2) { fundo.querySelector('#cadErro').textContent = 'Dê um nome com pelo menos 2 letras.'; return false; }

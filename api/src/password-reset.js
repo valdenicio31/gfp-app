@@ -67,9 +67,9 @@ async function sendResetEmail({ email, name, resetUrl }) {
     body: JSON.stringify({
       from,
       to: [email],
-      subject: 'Recuperação de senha — GFP Familiar',
-      html: `<p>Olá, ${safeName}.</p><p>Recebemos uma solicitação para redefinir sua senha no GFP Familiar.</p><p><a href="${safeUrl}">Criar uma nova senha</a></p><p>Este link expira em 20 minutos e só pode ser usado uma vez. Se você não fez esta solicitação, ignore esta mensagem.</p>`,
-      text: `Olá, ${name || 'usuário'}. Redefina sua senha do GFP Familiar em: ${resetUrl}\n\nO link expira em 20 minutos e só pode ser usado uma vez.`
+      subject: 'Recuperação de senha — GFP',
+      html: `<p>Olá, ${safeName}.</p><p>Recebemos uma solicitação para redefinir sua senha no GFP.</p><p><a href="${safeUrl}">Criar uma nova senha</a></p><p>Este link expira em 20 minutos e só pode ser usado uma vez. Se você não fez esta solicitação, ignore esta mensagem.</p>`,
+      text: `Olá, ${name || 'usuário'}. Redefina sua senha do GFP em: ${resetUrl}\n\nO link expira em 20 minutos e só pode ser usado uma vez.`
     })
   });
 

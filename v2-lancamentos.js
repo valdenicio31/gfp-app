@@ -1,4 +1,4 @@
-/* Tela de Lançamentos do GFP Familiar.
+/* Tela de Lançamentos do GFP.
    Filtro por coluna igual ao AutoFiltro do Excel, seleção de linhas,
    alteração e exclusão unitária, por seleção ou por período.
    Funciona com a API quando o usuário está logado e com dados de
@@ -55,7 +55,7 @@ const lanc = {
   carregando: false,
   demo: false,
   erroCarga: '',
-  categorias: []      // vem do cadastro da família; a lista fixa é só reserva
+  categorias: []      // vem do cadastro da conta; a lista fixa é só reserva
 };
 
 // Nomes das categorias que o usuário cadastrou (ou a lista de reserva).
@@ -83,7 +83,7 @@ function dadosDemonstracao() {
     ['2026-08-15', 'Escola Maple Bear — mensalidade', 'expense', 189000, 'Educação', 'demo-itau'],
     ['2026-08-14', 'Drogasil — farmácia', 'expense', 9670, 'Saúde', 'demo-dinheiro'],
     ['2026-08-12', 'Aluguel do apartamento', 'expense', 265000, 'Casa', 'demo-itau'],
-    ['2026-08-08', 'Cinema em família', 'expense', 18400, 'Lazer', 'demo-nubank'],
+    ['2026-08-08', 'Cinema', 'expense', 18400, 'Lazer', 'demo-nubank'],
     ['2026-08-05', 'Feira do bairro', 'expense', 13250, 'Alimentação', 'demo-dinheiro'],
     ['2026-07-28', 'Supermercado Angeloni', 'expense', 61240, 'Alimentação', 'demo-nubank'],
     ['2026-07-25', 'Salário — ViaIA Soluções', 'income', 940000, 'Outros', 'demo-itau'],
@@ -300,7 +300,7 @@ function faixaDeContas() {
     : [...new Map(lanc.itens.map(t => [t.account_id, { id: t.account_id, name: t.account_name }])).values()];
   if (!contas.length) {
     return `<div class="lanc-contas vazia">
-      <span>${svg('alerta', 'ico-s')}Nenhuma conta cadastrada nesta família ainda — os lançamentos precisam de uma conta para entrar.</span>
+      <span>${svg('alerta', 'ico-s')}Nenhuma conta cadastrada ainda — os lançamentos precisam de uma conta para entrar.</span>
       <button id="lancNovaConta">➕ Cadastrar conta</button></div>`;
   }
   return `<div class="lanc-contas">

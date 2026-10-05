@@ -55,7 +55,9 @@ app.get('/address/cep/:cep', rateLimit({windowMs:60*1000,limit:30}), async(req,r
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  familyName: z.string().trim().min(2).max(80),
+  // O GFP é individual desde a 2.0.0: a "família" é só a conta da pessoa,
+  // e leva o nome dela quando a tela não manda outro.
+  familyName: z.string().trim().max(80).optional(),
   email: z.email().transform(value => value.toLowerCase()),
   password: z.string().min(10).max(128)
 });
@@ -64,7 +66,8 @@ app.post('/auth/register-family', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Dados de cadastro inválidos' });
   if (!process.env.DATABASE_URL) return res.status(503).json({ error: 'Banco não configurado' });
-  const { name, familyName, email, password } = parsed.data;
+  const { name, email, password } = parsed.data;
+  const familyName = parsed.data.familyName && parsed.data.familyName.length >= 2 ? parsed.data.familyName : name;
   const familyId = crypto.randomUUID();
   const userId = crypto.randomUUID();
   const passwordHash = await bcrypt.hash(password, 12);
@@ -113,7 +116,12 @@ app.get('/family/profiles', requireAuth, async (req,res)=>{
 });
 
 const profileSchema=z.object({name:z.string().trim().min(2).max(50),baseRole:z.enum(['adult','dependent','viewer']),emoji:z.string().trim().min(1).max(12).default('👤')});
+// Conta individual: não se criam mais perfis nem se convidam usuários. Quem já
+// estava cadastrado em contas antigas continua entrando normalmente.
+const CONTA_INDIVIDUAL = { error: 'O GFP agora é individual: não é mais possível cadastrar outros usuários na mesma conta.' };
 app.post('/family/profiles',requireAuth,allowRoles('admin'),async(req,res)=>{
+  return res.status(410).json(CONTA_INDIVIDUAL);
+},async(req,res)=>{
   const parsed=profileSchema.safeParse(req.body);
   if(!parsed.success) return res.status(400).json({error:'Perfil inválido'});
   const id=crypto.randomUUID();
@@ -123,7 +131,9 @@ app.post('/family/profiles',requireAuth,allowRoles('admin'),async(req,res)=>{
 
 const validCpf=cpf=>{if(!/^\d{11}$/.test(cpf)||/^(\d)\1+$/.test(cpf))return false;const check=size=>{let sum=0;for(let i=0;i<size;i++)sum+=Number(cpf[i])*(size+1-i);const rest=(sum*10)%11;return (rest===10?0:rest)===Number(cpf[size])};return check(9)&&check(10)};
 const inviteSchema = z.object({name:z.string().trim().min(2).max(80),cpf:z.string().refine(validCpf),email:z.email().transform(value=>value.toLowerCase()),birthDate:z.iso.date(),phone:z.string().regex(/^\d{10,11}$/),profileId:z.uuid(),avatarEmoji:z.string().min(1).max(12).default('👤'),photoData:z.string().max(210000).refine(value=>!value||/^data:image\/(png|jpeg|webp);base64,/.test(value)).default(''),cep:z.string().regex(/^\d{8}$/),street:z.string().trim().min(2).max(120),number:z.string().trim().min(1).max(20),complement:z.string().trim().max(80).default(''),district:z.string().trim().min(2).max(80),city:z.string().trim().min(2).max(80),state:z.string().trim().length(2).transform(value=>value.toUpperCase())});
-app.post('/family/invitations', requireAuth, allowRoles('admin'), async (req, res) => {
+app.post('/family/invitations', requireAuth, allowRoles('admin'), async (_req, res) => {
+  return res.status(410).json(CONTA_INDIVIDUAL);
+}, async (req, res) => {
   const parsed = inviteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Convite inválido' });
   const duplicate=await query(`select 1 from users where email=$1 or cpf=$2 union all select 1 from invitations where accepted_at is null and expires_at>now() and (email=$1 or cpf=$2) limit 1`,[parsed.data.email,parsed.data.cpf]);

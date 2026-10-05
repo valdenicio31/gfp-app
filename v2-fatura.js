@@ -1,4 +1,4 @@
-/* Leitura de fatura de cartão do GFP Familiar.
+/* Leitura de fatura de cartão do GFP.
 
    A fatura difere do extrato em duas coisas. Primeiro, tudo nela é gasto: não
    existe sinal negativo, e um valor positivo não é receita. Segundo, boa parte

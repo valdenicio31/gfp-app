@@ -1,4 +1,4 @@
-/* Casos de teste do GFP Familiar.
+/* Casos de teste do GFP.
 
    Escritos uma vez e executados em dois lugares: pelo navegador, em
    tests/index.html, e por `node --test`, em tests/gfp.test.mjs. O motivo é

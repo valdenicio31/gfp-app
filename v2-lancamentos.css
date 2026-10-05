@@ -726,3 +726,13 @@ body:not(.tela-emprestimos) #telaEmprestimos{display:none}
 .emp-dica{margin:0;color:var(--muted);font-size:12.5px;text-transform:none;letter-spacing:0;font-weight:500}
 @media(max-width:700px){.emp-previa-numeros{grid-template-columns:1fr 1fr}.emp-lista{grid-template-columns:1fr}}
 .lanc-caixa .campos[hidden],.lanc-caixa label[hidden]{display:none}
+
+/* ---------- GFP individual (2.0.0) ----------
+   O sistema deixou de ser familiar: saem da tela o cadastro de usuários, os
+   perfis e os painéis por membro. O código e o banco continuam aceitando as
+   contas antigas com mais de um usuário, que seguem entrando normalmente. */
+.admin-shortcuts,.panel.members,.panel.member-usage,
+.module-tabs [data-module="users"],.module-tabs [data-module="profiles"],
+#module-users,#module-profiles,
+.viewbar>div:first-child,
+.rolebar>span,.rolebar #roleSelect,.rolebar #permissionLabel{display:none!important}

@@ -1,4 +1,4 @@
-/* Empréstimos do GFP Familiar — consignado, pessoal, CDC, financiamento.
+/* Empréstimos do GFP — consignado, pessoal, CDC, financiamento.
 
    A matemática é a de v2-emprestimos-calculo.js (Tabela Price, testada):
    o cadastro gera o cronograma aqui na tela e a API confere antes de gravar.
@@ -137,9 +137,9 @@ function desenharLista() {
 
   return `
     <div class="lanc-head">
-      <small>DÍVIDAS DA FAMÍLIA</small>
+      <small>SUAS DÍVIDAS</small>
       <h2>Empréstimos e financiamentos</h2>
-      <p>Cada contrato com o cronograma completo: quanto falta, quanto de juros ainda vem pela frente e quanto a família economizou antecipando.${emp.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
+      <p>Cada contrato com o cronograma completo: quanto falta, quanto de juros ainda vem pela frente e quanto você economizou antecipando.${emp.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
     </div>
     ${emp.erro ? `<div class="lanc-falha"><div>${svg('alerta')}<span><b>Não consegui carregar</b><small>${seguro(emp.erro)}</small></span></div><button id="empTentarDeNovo">Tentar de novo</button></div>` : ''}
     <div class="met-resumo">

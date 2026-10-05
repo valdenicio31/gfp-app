@@ -1,4 +1,4 @@
-/* Versão do GFP Familiar — fonte única.
+/* Versão do GFP — fonte única.
    Toda entrega em produção muda o número aqui e ganha uma entrada no topo do
    HISTORICO. O teste tests/gfp.test.mjs confere que este número é o mesmo do
    api/package.json e do cache do service worker (sw.js), para ninguém
@@ -10,9 +10,22 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '1.1.1', data: '2026-10-05' };
+const GFP_VERSAO = { numero: '2.0.0', data: '2026-10-05' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '2.0.0', data: '2026-10-05', titulo: 'GFP — Gestão Financeira Pessoal',
+    resumo: 'O sistema passa a ser individual: uma conta por pessoa, com tudo o que já existia para organizar as finanças.',
+    itens: [
+      ['melhoria', 'Novo nome: GFP — Gestão Financeira Pessoal.'],
+      ['melhoria', 'Conta individual: o cadastro pede só nome, e-mail e senha.'],
+      ['melhoria', 'Saem das telas o cadastro de usuários, os perfis e os painéis por membro.'],
+      ['melhoria', 'Contas antigas com mais de um usuário continuam funcionando para quem já estava cadastrado.'],
+      ['melhoria', 'Termos de Uso, Política de Privacidade, manual e página de planos reescritos para o uso individual.'],
+      ['melhoria', 'Novos preços: R$ 9,90 por mês ou R$ 69,90 por ano.'],
+      ['melhoria', 'Manual com todas as imagens atualizadas.']
+    ]
+  },
   {
     numero: '1.1.1', data: '2026-10-05', titulo: 'Termos e página de planos',
     resumo: 'Os documentos legais ganham os dados da empresa e a página de planos passa a mostrar o que está nos Termos.',
@@ -38,8 +51,8 @@ const GFP_HISTORICO = [
     numero: '1.0.0', data: '2026-09-28', titulo: 'Primeira versão oficial',
     resumo: 'Marco zero do versionamento: tudo o que já estava no ar passa a ser a versão 1.0.',
     itens: [
-      ['novo', 'Família com administrador, adultos, dependentes e somente leitura, cada um vendo só o que deve.'],
-      ['novo', 'Central da família com saldo, entradas, saídas, comparação com o mês anterior, gráficos e alertas.'],
+      ['novo', 'Acesso por perfis, cada um vendo só o que deve.'],
+      ['novo', 'Central com saldo, entradas, saídas, comparação com o mês anterior, gráficos e alertas.'],
       ['novo', 'Lançamentos com filtro por coluna, seleção em lote, exclusão por período e exportação.'],
       ['novo', 'Importação de extrato de qualquer banco: OFX, CSV, TXT e PDF, inclusive protegido por senha.'],
       ['novo', 'Importação de fatura de cartão, aproveitando as categorias do próprio emissor.'],
@@ -47,7 +60,7 @@ const GFP_HISTORICO = [
       ['novo', 'Cadastros de contas, bancos, agências, fornecedores, clientes e categorias.'],
       ['novo', 'Calendário de contas a pagar e receber, com recorrência e baixa com um clique.'],
       ['novo', 'Metas, orçamento do mês e reserva de emergência.'],
-      ['novo', 'Cartões de crédito com limite, fatura e participação de cada membro.'],
+      ['novo', 'Cartões de crédito com limite, fatura e gastos por categoria.'],
       ['novo', 'Manual de operação dentro do sistema, com busca e impressão.'],
       ['novo', 'Número de versão visível no sistema e histórico de novidades nesta página.']
     ]
@@ -61,7 +74,7 @@ window.GFP_HISTORICO = GFP_HISTORICO;
 function mostrarVersaoNaTela() {
   document.querySelectorAll('[data-versao]').forEach(el => {
     el.textContent = `Versão ${GFP_VERSAO.numero}`;
-    el.title = `GFP Familiar ${GFP_VERSAO.numero} — publicada em ${GFP_VERSAO.data.split('-').reverse().join('/')}`;
+    el.title = `GFP ${GFP_VERSAO.numero} — publicada em ${GFP_VERSAO.data.split('-').reverse().join('/')}`;
   });
 }
 if (typeof document !== 'undefined') {

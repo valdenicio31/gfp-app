@@ -1,4 +1,4 @@
-/* Leitor de extrato bancário do GFP Familiar.
+/* Leitor de extrato bancário do GFP.
    Recebe o texto de um arquivo de qualquer banco e devolve lançamentos prontos.
    Entende OFX (todos os bancos exportam) e arquivos separados por ; , ou tabulação,
    descobrindo sozinho quais colunas são data, descrição e valor.

@@ -1,7 +1,7 @@
 {
-  "name": "GFP Familiar — gestão financeira da família",
-  "short_name": "GFP Familiar",
-  "description": "Lançamentos, importação de extrato, calendário de contas, metas e painéis — para toda a família.",
+  "name": "GFP — Gestão Financeira Pessoal",
+  "short_name": "GFP",
+  "description": "Lançamentos, importação de extrato, calendário de contas, empréstimos, metas e painéis das suas finanças.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "/v2.html",

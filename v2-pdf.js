@@ -1,4 +1,4 @@
-/* Leitura de extrato e fatura em PDF do GFP Familiar.
+/* Leitura de extrato e fatura em PDF do GFP.
 
    O PDF não é um formato de dados: é um formato de página. Aqui o trabalho é
    devolver o texto na ordem em que a pessoa lê — cada lançamento em uma linha —

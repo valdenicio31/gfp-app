@@ -32,13 +32,13 @@ async function loadRealProfile(token){
   const profile=await request('/me',{headers:{Authorization:`Bearer ${token}`}});
   if(!profile) throw new Error('Perfil não encontrado ou suspenso');
   window.currentProfileRole=profile.role;
-  document.querySelector('header small').textContent=`👨‍👩‍👧‍👦 ${profile.family_name.toUpperCase()}`;
-  profiles[profile.role]={name:profile.name.split(' ')[0],permission:profiles[profile.role]?.permission||'Acesso familiar'};
+  document.querySelector('header small').textContent='👤 MINHA CONTA';
+  profiles[profile.role]={name:profile.name.split(' ')[0],permission:profiles[profile.role]?.permission||'Acesso à conta'};
   window.demoMode=false;enter(profile.role);window.demoMode=false;
   roleSelect.disabled=true;
   const isAdmin=profile.role==='admin';document.querySelector('[data-view="family"]').hidden=!isAdmin;document.querySelector('[data-view="private"]').classList.toggle('selected',!isAdmin);document.querySelectorAll('[data-module="users"],[data-module="profiles"]').forEach(button=>button.disabled=!isAdmin);document.querySelectorAll('[data-open-module]').forEach(button=>button.disabled=!isAdmin);await loadFinance(isAdmin?'family':'self');if(isAdmin)await loadFamilyAdmin();
   if(typeof window.recarregarPainel==='function')window.recarregarPainel();
-  notify(`Bem-vindo à família ${profile.family_name} 💜`);
+  notify(`Bem-vindo, ${String(profile.name||'').split(' ')[0]} 💜`);
 }
 
 document.querySelectorAll('[data-auth-tab]').forEach(button=>button.addEventListener('click',()=>{
@@ -60,7 +60,7 @@ loginForm.addEventListener('submit',async event=>{
 registerForm.addEventListener('submit',async event=>{
   event.preventDefault();
   try{
-    const data=await request('/auth/register-family',{method:'POST',body:JSON.stringify({name:document.querySelector('#registerName').value,familyName:document.querySelector('#registerFamily').value,email:document.querySelector('#registerEmail').value,password:document.querySelector('#registerPassword').value})});
+    const data=await request('/auth/register-family',{method:'POST',body:JSON.stringify({name:document.querySelector('#registerName').value,familyName:document.querySelector('#registerFamily').value||document.querySelector('#registerName').value,email:document.querySelector('#registerEmail').value,password:document.querySelector('#registerPassword').value})});
     setSession(data.token);await loadRealProfile(data.token);
   }catch(error){notify(`🔴 ${error.message}`)}
 });

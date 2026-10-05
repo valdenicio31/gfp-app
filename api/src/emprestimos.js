@@ -1,4 +1,4 @@
-/* Empréstimos do GFP Familiar — rotas da API e as regras que elas aplicam.
+/* Empréstimos do GFP — rotas da API e as regras que elas aplicam.
 
    O cronograma nasce na tela, pela mesma matemática testada em
    v2-emprestimos-calculo.js, e chega aqui pronto. A API não confia nele de

@@ -1,4 +1,4 @@
-/* Calendário do mês e agenda de contas a pagar e a receber do GFP Familiar.
+/* Calendário do mês e agenda de contas a pagar e a receber do GFP.
    A agenda guarda o compromisso ("aluguel, todo dia 10"); o calendário mostra
    os vencimentos do mês e, com um clique em "Pagar", a previsão vira lançamento. */
 
@@ -33,7 +33,7 @@ function calendarioDemonstracao() {
     { id: 'demo-l3', occurred_on: d(12), type: 'expense', description: 'Posto Ipiranga', amount_cents: 27000, category: 'Transporte', conta_nome: 'Nubank' }
   ];
   cal.faturas = [{ id: 'demo-c1', name: 'Nubank', last_four: '4417', due_day: 12, invoice_cents: 189000, due_on: d(12) }];
-  cal.metas = [{ id: 'demo-m1', title: 'Viagem em família', emoji: '✈️', deadline: d(28), target_cents: 2000000, current_cents: 1500000 }];
+  cal.metas = [{ id: 'demo-m1', title: 'Viagem de férias', emoji: '✈️', deadline: d(28), target_cents: 2000000, current_cents: 1500000 }];
   cal.agenda = cal.previstas.map(p => ({ ...p, day_of_month: Number(p.due_on.slice(8, 10)), is_active: true, first_due_on: p.due_on }));
   cal.resumo = {
     entradas_cents: 700000, saidas_cents: 75900,
@@ -96,7 +96,7 @@ function desenharCalendario() {
 
   alvo.innerHTML = `
     <div class="lanc-head">
-      <small>AGENDA DA FAMÍLIA</small>
+      <small>SUA AGENDA</small>
       <h2>Calendário de ${MESES_NOME[cal.mes - 1]} de ${cal.ano}</h2>
       <p>O que entra, o que sai e o que vence — com um clique para transformar a conta prevista em lançamento.${cal.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
     </div>

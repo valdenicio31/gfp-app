@@ -1,5 +1,5 @@
-/* Reconhecimento de fornecedor e sugestão de categoria do GFP Familiar.
-   Duas fontes, nesta ordem: o histórico já categorizado da própria família
+/* Reconhecimento de fornecedor e sugestão de categoria do GFP.
+   Duas fontes, nesta ordem: o histórico já categorizado da própria pessoa
    (o que o usuário ensinou vale mais) e uma lista de padrões brasileiros.
    Funciona no navegador e é testável no Node. */
 
@@ -140,7 +140,7 @@ function doCadastro(descricao, parceiros = []) {
   return melhor;
 }
 
-// Compara com o que a família já categorizou: se bate bem, aprende dali.
+// Compara com o que a pessoa já categorizou: se bate bem, aprende dali.
 function doHistorico(descricao, historico = []) {
   const alvo = new Set(chave(descricao).split(' ').filter(p => p.length >= 4 && !RUIDO.has(p) && !CONECTORES.has(p)));
   if (!alvo.size) return null;
@@ -170,7 +170,7 @@ function doHistorico(descricao, historico = []) {
 }
 
 // Ordem de prioridade: o cadastro que o usuário fez, depois o histórico já
-// categorizado da família, depois a lista de padrões brasileiros. Se nada bate,
+// categorizado da pessoa, depois a lista de padrões brasileiros. Se nada bate,
 // devolve o nome provável sem categoria — não inventa.
 function reconhecer(descricao, historico = [], parceiros = []) {
   return doCadastro(descricao, parceiros)

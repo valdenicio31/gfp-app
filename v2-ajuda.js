@@ -1,4 +1,4 @@
-/* Manual de operação do GFP Familiar, dentro do próprio sistema.
+/* Manual de operação do GFP, dentro do próprio sistema.
    O conteúdo fica neste arquivo em forma de dados: cada seção tem título, texto,
    passos, dicas e a imagem da tela. Assim dá para procurar, imprimir e crescer
    sem mexer no desenho da tela. */
@@ -7,10 +7,10 @@ const MANUAL = [
   {
     id: 'comecar', titulo: 'Como começar', emoji: '🚀',
     resumo: 'Do primeiro acesso ao primeiro lançamento, na ordem que dá menos trabalho.',
-    imagem: 'ajuda/entrar.webp', legenda: 'A tela de entrada: quem já tem conta usa "Entrar"; quem está começando usa "Criar família".',
+    imagem: 'ajuda/entrar.webp', legenda: 'A tela de entrada: quem já tem conta usa "Entrar"; quem está começando usa "Criar conta".',
     passos: [
-      'Na tela de entrada, escolha <b>Criar família</b> e informe seu nome, o nome da família, seu e-mail e uma senha de pelo menos 10 caracteres.',
-      'Quem cria a família entra como <b>administrador</b>: só esse perfil cadastra usuários e define permissões.',
+      'Na tela de entrada, escolha <b>Criar conta</b> e informe seu nome, seu e-mail e uma senha de pelo menos 10 caracteres.',
+      'A conta é <b>individual</b>: só você entra nela e só você vê os seus dados.',
       'Vá em <b>Cadastros</b> e cadastre suas contas — a conta do banco, a poupança, o dinheiro da carteira. Nada funciona sem pelo menos uma conta, porque todo lançamento precisa dizer de onde o dinheiro saiu ou entrou.',
       'Vá em <b>Lançamentos → Importar extrato</b> e jogue o arquivo que você baixa do banco. Em segundos você tem meses de histórico já classificado.',
       'Cadastre no <b>Calendário</b> as contas que se repetem (aluguel, escola, internet) e no <b>Metas</b> os limites de gasto do mês.',
@@ -22,7 +22,7 @@ const MANUAL = [
     ]
   },
   {
-    id: 'central', titulo: 'Central: o painel da família', emoji: '🏠',
+    id: 'central', titulo: 'Central: o seu painel', emoji: '🏠',
     resumo: 'A primeira tela. Tudo aqui é calculado dos seus lançamentos — não existe número fixo.',
     imagem: 'ajuda/central.webp', legenda: 'A Central mostra saldo, o que entrou e saiu no mês, e a comparação com o mês anterior.',
     passos: [
@@ -207,12 +207,12 @@ const MANUAL = [
     ]
   },
   {
-    id: 'metas', titulo: 'Metas da família', emoji: '🎯',
-    resumo: 'Guardar dinheiro por objetivo, com histórico de quem depositou e quando.',
+    id: 'metas', titulo: 'Metas', emoji: '🎯',
+    resumo: 'Guardar dinheiro por objetivo, com o histórico de cada depósito.',
     imagem: 'ajuda/metas.webp', legenda: 'Cada meta tem barra de progresso, quanto falta e os botões de movimentar.',
     passos: [
       'Em <b>Nova meta</b>, dê um nome ao objetivo, quanto quer juntar, o prazo (opcional) e um ícone.',
-      '<b>Depositar</b> soma dinheiro na meta e grava quem fez, quando e a observação.',
+      '<b>Depositar</b> soma dinheiro na meta e grava a data e a observação.',
       '<b>Retirar</b> tira dinheiro. O sistema não deixa retirar mais do que existe na meta.',
       '<b>Movimentos</b> abre o histórico completo daquela meta.',
       'Quando o valor guardado chega no objetivo, a meta fica verde com "Meta alcançada 🎉".'
@@ -224,7 +224,7 @@ const MANUAL = [
     resumo: 'Quanto pode gastar em cada categoria — comparado com o que você já gastou.',
     imagem: 'ajuda/orcamento.webp', legenda: 'Verde até 75%, amarelo de 75% a 99%, vermelho quando passa de 100%.',
     passos: [
-      'Em <b>Definir limite</b>, escolha a categoria e quanto a família pode gastar nela naquele mês.',
+      'Em <b>Definir limite</b>, escolha a categoria e quanto você pode gastar nela naquele mês.',
       'A barra ao lado compara o limite com <b>o que já saiu nos seus lançamentos</b> — você não digita o realizado, ele vem sozinho.',
       'Use ◀ ▶ para definir ou revisar os limites de outros meses.',
       'O ✏️ altera o limite; a 🗑️ tira a categoria do orçamento daquele mês.'
@@ -236,26 +236,26 @@ const MANUAL = [
   },
   {
     id: 'reserva', titulo: 'Reserva de emergência', emoji: '🛟',
-    resumo: 'O colchão da família para o imprevisto.',
+    resumo: 'O seu colchão para o imprevisto.',
     imagem: 'ajuda/reserva.webp', legenda: 'Alvo, aporte mensal, e em quantos meses você chega lá nesse ritmo.',
     passos: [
-      'Em <b>Criar reserva</b>, informe quanto a família quer ter guardado e quanto pretende aportar por mês.',
+      'Em <b>Criar reserva</b>, informe quanto você quer ter guardado e quanto pretende aportar por mês.',
       'Deposite e retire pelos botões do cartão, do mesmo jeito das metas.',
       'O sistema calcula sozinho quantos meses faltam para chegar no alvo, no ritmo que você planejou.'
     ],
-    dicas: ['A recomendação mais comum é juntar de três a seis meses da despesa da família. Some as saídas de um mês na Central e multiplique.']
+    dicas: ['A recomendação mais comum é juntar de três a seis meses das suas despesas. Some as saídas de um mês na Central e multiplique.']
   },
   {
     id: 'cartoes', titulo: 'Cartões de crédito', emoji: '💳',
-    resumo: 'Limite, fatura e o que cada membro da família comprou.',
-    imagem: 'ajuda/cartoes.webp', legenda: 'O painel mostra o limite comprometido, a fatura do mês e a participação de cada membro.',
+    resumo: 'Limite, fatura e o que foi comprado em cada cartão.',
+    imagem: 'ajuda/cartoes.webp', legenda: 'O painel mostra o limite comprometido, a fatura do mês e os gastos por categoria.',
     passos: [
       'Em <b>Cartões</b>, cadastre nome, bandeira, últimos quatro dígitos, limite, dia de fechamento e dia de vencimento.',
       'Registre as compras com valor, categoria e número de parcelas. O sistema divide as parcelas na fatura.',
-      'O painel mostra o quanto do limite está comprometido e a participação de cada membro na fatura.',
+      'O painel mostra o quanto do limite está comprometido e para onde foram os gastos da fatura.',
       'O vencimento do cartão aparece automaticamente no Calendário.'
     ],
-    dicas: ['Cada adulto vê e lança no próprio cartão; o administrador vê os cartões de toda a família.']
+    dicas: ['Mantenha o uso de cada cartão abaixo de 40% do limite: o painel avisa quando passar disso.']
   },
   {
     id: 'emprestimos', titulo: 'Empréstimos e financiamentos', emoji: '🏦',
@@ -290,19 +290,6 @@ const MANUAL = [
     ]
   },
   {
-    id: 'usuarios', titulo: 'Usuários e perfis', emoji: '👥',
-    resumo: 'Quatro níveis de acesso, para cada um ver só o que deve ver.',
-    imagem: 'ajuda/usuarios.webp', legenda: 'O administrador cadastra o familiar e escolhe o perfil; a senha quem cria é o próprio familiar.',
-    passos: [
-      '<b>Administrador</b> — vê tudo da família, cadastra usuários, define perfis e cuida da licença. Só existe um.',
-      '<b>Adulto</b> — lança, importa, cadastra e cria metas. Vê as contas da família que não estão marcadas como privadas.',
-      '<b>Dependente</b> — lança os próprios gastos e vê só o que é dele. Bom para filho adolescente.',
-      '<b>Somente leitura</b> — olha, não mexe.',
-      'Em <b>Cadastrar usuário</b>, o administrador preenche os dados e escolhe o perfil. O familiar recebe o convite e cria a própria senha.'
-    ],
-    dicas: ['Conta marcada como <b>privada</b> só aparece para quem é dono dela — nem o administrador vê.']
-  },
-  {
     id: 'celular', titulo: 'Instalar no celular', emoji: '📱',
     resumo: 'O GFP funciona como aplicativo no seu telefone, sem passar por loja.',
     imagem: 'ajuda/celular.webp', legenda: 'A mesma tela, ajustada para o telefone.',
@@ -315,9 +302,9 @@ const MANUAL = [
   },
   {
     id: 'seguranca', titulo: 'Segurança e privacidade', emoji: '🔒',
-    resumo: 'Como os dados da sua família ficam guardados.',
+    resumo: 'Como os seus dados ficam guardados.',
     passos: [
-      'Cada família só vê os próprios dados. Não existe forma de um usuário alcançar dados de outra família.',
+      'Cada conta só vê os próprios dados. Não existe forma de uma pessoa alcançar os dados de outra.',
       'A senha nunca é guardada em texto — o que fica salvo é um resumo criptográfico que não volta atrás.',
       'A sessão expira depois de 8 horas, pedindo login de novo.',
       'Esqueceu a senha? Use <b>Primeiro acesso</b> / recuperação na tela de entrada: chega um link no seu e-mail, válido por tempo limitado.',
@@ -344,7 +331,7 @@ const MANUAL = [
   },
   {
     id: 'versoes', titulo: 'Novidades e versões', emoji: '🏷️',
-    resumo: 'O que mudou em cada versão do GFP Familiar, da mais nova para a mais antiga.',
+    resumo: 'O que mudou em cada versão do GFP, da mais nova para a mais antiga.',
     especial: 'versoes',
     passos: [
       'A versão em uso aparece no rodapé e embaixo da licença, na barra lateral. Clique nela para abrir esta página.',
@@ -377,7 +364,7 @@ function desenharAjuda() {
     <div class="lanc-head">
       <small>AJUDA</small>
       <h2>Manual de operação</h2>
-      <p>Como usar cada tela do GFP Familiar, passo a passo, com dicas de quem já tropeçou antes.</p>
+      <p>Como usar cada tela do GFP, passo a passo, com dicas de quem já tropeçou antes.</p>
       <div class="aju-meta">
         <button type="button" class="aju-versao" data-secao="versoes">🏷️ Versão ${seguro(versaoAtual().numero)} · ${seguro(ajuDataBr(versaoAtual().data))}</button>
         <button type="button" class="aju-imprimir" id="ajuImprimir">🖨️ Imprimir manual completo</button>
@@ -461,7 +448,7 @@ function imprimirManual() {
   const v = versaoAtual();
   area.innerHTML = `
     <div class="imp-capa">
-      <h1>GFP Familiar — Manual de operação</h1>
+      <h1>GFP — Manual de operação</h1>
       <p>Versão ${seguro(v.numero)} · ${seguro(ajuDataBr(v.data))}</p>
       <ol>${MANUAL.map(s => `<li>${s.emoji} ${seguro(s.titulo)}</li>`).join('')}</ol>
     </div>
@@ -472,7 +459,7 @@ function imprimirManual() {
         ${s.imagem ? `<figure><img src="${s.imagem}" alt=""><figcaption>${seguro(s.legenda || '')}</figcaption></figure>` : ''}
         ${conteudoSecao(s)}
       </section>`).join('')}
-    <p class="imp-rodape">Dúvidas: contato@viaiasolucoes.com · GFP Familiar ${seguro(v.numero)}</p>`;
+    <p class="imp-rodape">Dúvidas: contato@viaiasolucoes.com · GFP ${seguro(v.numero)}</p>`;
   document.body.classList.add('imprimindo-manual');
   const imagens = [...area.querySelectorAll('img')];
   Promise.all(imagens.map(img => img.complete ? null : new Promise(ok => { img.onload = img.onerror = ok; })))

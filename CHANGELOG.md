@@ -1,4 +1,4 @@
-# Histórico de versões — GFP Familiar
+# Histórico de versões — GFP (Gestão Financeira Pessoal)
 
 A versão em uso aparece no sistema (rodapé, barra lateral e em **Ajuda → Novidades e versões**)
 e na API, em `GET /health`.
@@ -24,6 +24,19 @@ Cada publicação altera, no mesmo commit:
 `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
 ---
+
+## 2.0.0 — 05/10/2026 · GFP — Gestão Financeira Pessoal
+
+Mudança de conceito: o sistema deixa de ser familiar e passa a ser **individual**.
+
+- Nome: GFP — Gestão Financeira Pessoal, em todas as telas, no aplicativo instalável, nos e-mails e nos documentos.
+- Cadastro pede só nome, e-mail e senha. Na API, `familyName` virou opcional e assume o nome da pessoa.
+- Saem das telas o cadastro de usuários, os perfis, a troca "toda a família / só meus dados" e os painéis por membro.
+- API: `POST /family/invitations` e `POST /family/profiles` respondem 410. Nada foi removido do banco.
+- Contas antigas com mais de um usuário continuam funcionando para quem já estava cadastrado.
+- Termos de Uso e Política de Privacidade (versão 2.0), manual e página de planos reescritos para o uso individual.
+- Preços novos: R$ 9,90 por mês ou R$ 69,90 por ano (equivale a R$ 5,83 por mês), nos Termos e na página de planos.
+- Todas as imagens do manual refeitas com as telas da versão individual.
 
 ## 1.1.1 — 05/10/2026 · Termos e página de planos
 

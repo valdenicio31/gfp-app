@@ -1,4 +1,4 @@
-/* Matemática dos empréstimos do GFP Familiar.
+/* Matemática dos empréstimos do GFP.
 
    Serve para consignado, pessoal, CDC — qualquer contrato de parcela fixa, que
    é como o mercado brasileiro trabalha (Tabela Price). O cadastro pede valor,
