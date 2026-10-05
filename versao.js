@@ -10,9 +10,18 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '1.1.0', data: '2026-09-28' };
+const GFP_VERSAO = { numero: '1.1.1', data: '2026-10-05' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '1.1.1', data: '2026-10-05', titulo: 'Termos e página de planos',
+    resumo: 'Os documentos legais ganham os dados da empresa e a página de planos passa a mostrar o que está nos Termos.',
+    itens: [
+      ['melhoria', 'Termos de Uso e Política de Privacidade com CNPJ, endereço e data de vigência.'],
+      ['correcao', 'Página de planos alinhada aos Termos: mensal e anual, com 14 dias de teste.'],
+      ['correcao', 'Saem da página de apresentação os recursos que ainda não existem.']
+    ]
+  },
   {
     numero: '1.1.0', data: '2026-09-28', titulo: 'Empréstimos e financiamentos',
     resumo: 'O módulo de empréstimos sai do papel: contrato, cronograma e baixa das parcelas.',

@@ -6,7 +6,7 @@
    3) arquivos estáticos vêm do cache e são atualizados por trás. */
 // Acompanha a versão do versao.js: trocar o número descarta o cache antigo
 // nos aparelhos dos clientes e força as telas novas.
-const CACHE = 'gfp-1.1.0';
+const CACHE = 'gfp-1.1.1';
 const ESSENCIAIS = ['/', '/v2.html', '/versao.js', '/manifest.webmanifest', '/favicon.svg', '/icone-192.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', evento => {

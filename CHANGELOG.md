@@ -25,6 +25,12 @@ Cada publicação altera, no mesmo commit:
 
 ---
 
+## 1.1.1 — 05/10/2026 · Termos e página de planos
+
+- Termos de Uso e Política de Privacidade: CNPJ, endereço, encarregado de dados, data de vigência e os fornecedores (Render, Asaas, Resend) preenchidos.
+- Página de apresentação alinhada aos Termos: planos mensal (R$ 19,90) e anual (R$ 149,00), 14 dias de teste. Saem o plano Gratuito e o Premium.
+- Removidas promessas de recursos que não existem (API de integração, relatórios personalizados, auditoria).
+
 ## 1.1.0 — 28/09/2026 · Empréstimos e financiamentos
 
 - Tela Empréstimos: consignado, pessoal, CDC, financiamento e cheque especial, com saldo devedor, juros e próxima parcela.
