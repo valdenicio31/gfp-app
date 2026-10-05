@@ -25,6 +25,13 @@ Cada publicação altera, no mesmo commit:
 
 ---
 
+## 2.1.0 — 05/10/2026 · A categoria acompanha o fornecedor
+
+- Ao incluir ou alterar um lançamento com fornecedor ou cliente, a categoria é aplicada a todos os outros lançamentos do mesmo parceiro, inclusive os que tinham outra categoria. Transferências ficam de fora.
+- O cadastro do fornecedor ou cliente recebe a categoria (e é criado se não existir), para as próximas importações.
+- API: `POST /transactions` e `PATCH /transactions/:id` devolvem `replicated`, o número de lançamentos reclassificados. Regra em `api/src/categoria-fornecedor.js`.
+- `npm test` passa a rodar um arquivo por vez, porque dois testes recriam o mesmo banco de teste.
+
 ## 2.0.0 — 05/10/2026 · GFP — Gestão Financeira Pessoal
 
 Mudança de conceito: o sistema deixa de ser familiar e passa a ser **individual**.

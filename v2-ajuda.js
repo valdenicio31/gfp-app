@@ -89,6 +89,7 @@ const MANUAL = [
     passos: [
       '<b>Novo lançamento</b> abre o formulário: data, tipo (entrada ou saída), conta, descrição, categoria, fornecedor e valor.',
       'O ✏️ de cada linha altera o lançamento. Ao salvar, o saldo da conta é recalculado — inclusive se você mudou a conta ou o valor.',
+      'Com <b>fornecedor ou cliente</b> preenchido, a <b>categoria</b> que você escolher vale para todos os lançamentos dele: os outros são reclassificados na hora, e o aviso diz quantos mudaram.',
       'Marque as caixinhas à esquerda para selecionar linhas. Uma barra roxa aparece com o total selecionado e o botão de excluir em lote.',
       '<b>Excluir</b> tem três caminhos: os marcados, um período inteiro (com resumo antes de confirmar) ou linha por linha.',
       '<b>Exportar CSV</b> baixa exatamente o que está na tela, com os filtros aplicados.'

@@ -10,9 +10,18 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '2.0.0', data: '2026-10-05' };
+const GFP_VERSAO = { numero: '2.1.0', data: '2026-10-05' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '2.1.0', data: '2026-10-05', titulo: 'A categoria acompanha o fornecedor',
+    resumo: 'Classificou um lançamento de um fornecedor ou cliente? Todos os outros dele ficam com a mesma categoria.',
+    itens: [
+      ['novo', 'Ao incluir ou alterar um lançamento com fornecedor ou cliente, a categoria escolhida é aplicada a todos os lançamentos dele, inclusive os que tinham outra.'],
+      ['novo', 'O cadastro do fornecedor guarda a categoria, e as próximas importações já chegam classificadas.'],
+      ['melhoria', 'O aviso ao salvar mostra quantos lançamentos foram reclassificados.']
+    ]
+  },
   {
     numero: '2.0.0', data: '2026-10-05', titulo: 'GFP — Gestão Financeira Pessoal',
     resumo: 'O sistema passa a ser individual: uma conta por pessoa, com tudo o que já existia para organizar as finanças.',

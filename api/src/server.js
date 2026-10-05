@@ -12,6 +12,7 @@ import nodemailer from 'nodemailer';
 import passwordResetRouter from './password-reset.js';
 import { readFileSync } from 'node:fs';
 import { registrarEmprestimos } from './emprestimos.js';
+import { deveReplicar, replicarCategoriaDoFornecedor } from './categoria-fornecedor.js';
 
 // Versão publicada: a mesma do versao.js do site (o teste confere).
 const VERSAO = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -346,7 +347,7 @@ async function contaGravavel(req, accountId) {
 }
 
 async function lancamentoGravavel(req, id) {
-  const resultado = await query(`select t.id,t.type,t.amount_cents,t.account_id,a.owner_user_id,a.is_private
+  const resultado = await query(`select t.id,t.type,t.amount_cents,t.account_id,t.category,t.supplier,a.owner_user_id,a.is_private
     from transactions t join accounts a on a.id=t.account_id
     where t.id=$1 and t.family_id=$2 and (a.owner_user_id=$3 or ($4::boolean=true and a.is_private=false))`,
     [id, req.auth.familyId, req.auth.sub, req.auth.role === 'admin']);
@@ -361,14 +362,20 @@ app.post('/transactions', requireAuth, allowRoles('admin','adult','dependent'), 
   const { accountId, type, description, amountCents, occurredOn, category, supplier } = parsed.data;
   if (!await contaGravavel(req, accountId)) return res.status(404).json({ error: 'Conta não encontrada' });
   const id = crypto.randomUUID();
+  let replicados = 0;
   await transaction(async client => {
     await client.query(`insert into transactions (id,family_id,account_id,created_by,type,description,amount_cents,occurred_on,category,supplier)
       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [id, req.auth.familyId, accountId, req.auth.sub, type, description, amountCents, occurredOn, category || null, supplier || null]);
     await client.query(`update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3`,
       [type === 'income' ? amountCents : -amountCents, accountId, req.auth.familyId]);
+    // A categoria dada a um fornecedor vale para todos os lançamentos dele.
+    if (deveReplicar(null, { category, supplier })) {
+      replicados = await replicarCategoriaDoFornecedor((sql, params) => client.query(sql, params),
+        { familyId: req.auth.familyId, userId: req.auth.sub, isAdmin: req.auth.role === 'admin', supplier, category, type, exceto: id });
+    }
   });
-  res.status(201).json({ id });
+  res.status(201).json({ id, replicated: replicados });
 });
 
 app.patch('/transactions/:id', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {
@@ -386,6 +393,12 @@ app.patch('/transactions/:id', requireAuth, allowRoles('admin','adult','dependen
     type: parsed.data.type ?? atual.type,
     amount_cents: parsed.data.amountCents ?? Number(atual.amount_cents)
   };
+  // Como o lançamento fica depois de salvo: é isso que decide a replicação.
+  const depois = {
+    category: parsed.data.category !== undefined ? parsed.data.category : atual.category,
+    supplier: parsed.data.supplier !== undefined ? parsed.data.supplier : atual.supplier
+  };
+  let replicados = 0;
 
   await transaction(async client => {
     const campos = [], valores = [];
@@ -406,8 +419,13 @@ app.patch('/transactions/:id', requireAuth, allowRoles('admin','adult','dependen
       [efeito(atual), atual.account_id, req.auth.familyId]);
     await client.query(`update accounts set balance_cents=balance_cents+$1 where id=$2 and family_id=$3`,
       [efeito(novo), destino, req.auth.familyId]);
+    if (novo.type !== 'transfer' && deveReplicar(atual, depois)) {
+      replicados = await replicarCategoriaDoFornecedor((sql, params) => client.query(sql, params),
+        { familyId: req.auth.familyId, userId: req.auth.sub, isAdmin: req.auth.role === 'admin',
+          supplier: depois.supplier, category: depois.category, type: novo.type, exceto: req.params.id });
+    }
   });
-  res.json({ id: req.params.id });
+  res.json({ id: req.params.id, replicated: replicados });
 });
 
 app.delete('/transactions/:id', requireAuth, allowRoles('admin','adult','dependent'), async (req, res) => {

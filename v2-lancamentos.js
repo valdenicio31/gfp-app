@@ -555,6 +555,7 @@ function abrirEditor(id) {
       <label>Valor (R$)<input id="lancCampoValor" type="number" min="0.01" step="0.01" value="${linha ? (Number(linha.amount_cents) / 100).toFixed(2) : ''}" placeholder="0,00"></label>
       <label>Fornecedor (opcional)<input id="lancCampoFornecedor" maxlength="120" value="${seguro(linha?.supplier || '')}" placeholder="Ex.: Assaí Atacadista"></label>
     </div>
+    <p class="sub" style="font-size:12.5px">Com fornecedor ou cliente informado, a categoria escolhida aqui passa a valer para <b>todos</b> os lançamentos dele, e as próximas importações já chegam classificadas.</p>
     <p class="lanc-erro" id="lancErroEditor"></p>
     <div class="pe"><button data-fechar="1">Cancelar</button><button class="principal" id="lancSalvar">${linha ? 'Salvar alterações' : 'Incluir lançamento'}</button></div>`);
 
@@ -578,17 +579,29 @@ function abrirEditor(id) {
     const botao = fundo.querySelector('#lancSalvar');
     botao.disabled = true;
     try {
+      // A categoria dada a um fornecedor vale para todos os lançamentos dele.
+      const mudou = dados.category && dados.supplier && (!linha || linha.category !== dados.category
+        || String(linha.supplier || '').trim().toLowerCase() !== dados.supplier.toLowerCase());
+      const avisoReplicacao = quantos => (quantos > 0
+        ? ` · ${dados.category} aplicada a mais ${quantos} lançamento${quantos > 1 ? 's' : ''} de ${dados.supplier}` : '');
       if (lanc.demo) {
+        let replicados = 0;
+        if (mudou) lanc.itens.forEach(item => {
+          if (item !== linha && item.type !== 'transfer' && String(item.supplier || '').trim().toLowerCase() === dados.supplier.toLowerCase() && item.category !== dados.category) {
+            item.category = dados.category; replicados += 1;
+          }
+        });
         if (linha) Object.assign(linha, { occurred_on: dados.occurredOn, type: dados.type, description: dados.description, category: dados.category, account_id: dados.accountId, amount_cents: dados.amountCents, supplier: dados.supplier, account_name: contas.find(c => c.id === dados.accountId)?.name });
         else lanc.itens.unshift({ id: `demo-${Date.now()}`, occurred_on: dados.occurredOn, type: dados.type, description: dados.description, category: dados.category, account_id: dados.accountId, amount_cents: dados.amountCents, supplier: dados.supplier, account_name: contas.find(c => c.id === dados.accountId)?.name });
         fecharCaixa();
         desenharTela();
-        return notify(linha ? '🟢 Lançamento alterado (demonstração)' : '🟢 Lançamento incluído (demonstração)');
+        return notify((linha ? '🟢 Lançamento alterado (demonstração)' : '🟢 Lançamento incluído (demonstração)') + avisoReplicacao(replicados));
       }
-      if (linha) await request(`/transactions/${linha.id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(dados) });
-      else await request('/transactions', { method: 'POST', headers: authHeaders(), body: JSON.stringify(dados) });
+      const resposta = linha
+        ? await request(`/transactions/${linha.id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(dados) })
+        : await request('/transactions', { method: 'POST', headers: authHeaders(), body: JSON.stringify(dados) });
       fecharCaixa();
-      notify(linha ? '🟢 Lançamento alterado' : '🟢 Lançamento incluído');
+      notify((linha ? '🟢 Lançamento alterado' : '🟢 Lançamento incluído') + avisoReplicacao(Number(resposta?.replicated) || 0));
       await carregarLancamentos();
       if (typeof loadFinance === 'function') loadFinance().catch(() => {});
     } catch (falha) {
