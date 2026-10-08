@@ -10,9 +10,25 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '2.1.0', data: '2026-10-05' };
+const GFP_VERSAO = { numero: '2.2.0', data: '2026-10-08' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '2.2.0', data: '2026-10-08', titulo: 'Período, banco e conta — e painéis de receitas e despesas',
+    resumo: 'Lançamentos abre no mês atual e filtra por período, banco, conta e categoria. A Central ganha os painéis de Receitas e de Despesas. Empréstimos mostra parcelas pagas, a pagar, juros e economia.',
+    itens: [
+      ['novo', 'Lançamentos abre sempre no mês atual. Em Período dá para escolher um mês anterior, uma data inicial e uma final, ou todos os lançamentos.'],
+      ['novo', 'Lançamentos: filtros de banco, conta e categoria ao lado do período.'],
+      ['novo', 'Central: filtros de banco e conta, ou tudo consolidado.'],
+      ['novo', 'Central: abas Receitas e Despesas, com o total por tipo e por mês no ano atual e o dos últimos cinco anos.'],
+      ['novo', 'Empréstimos: parcelas já pagas, parcelas que faltam, juros já pagos e economia pagando adiantado.'],
+      ['novo', 'Empréstimos: listagem dos contratos com vencimento, parcela/total, valor da parcela, valor pago, juros e valor economizado.'],
+      ['melhoria', 'Central: "Entrou x saiu" passa a se chamar "Receitas x despesas".'],
+      ['melhoria', 'Empréstimos: o desconto de uma antecipação sai dos juros pagos e aparece só como economia.'],
+      ['correcao', 'A conferência da exclusão por período mostra exatamente o que será apagado, mesmo com a tela em outro mês.'],
+      ['correcao', 'O alerta da reserva de emergência não fala mais em família.']
+    ]
+  },
   {
     numero: '2.1.0', data: '2026-10-05', titulo: 'A categoria acompanha o fornecedor',
     resumo: 'Classificou um lançamento de um fornecedor ou cliente? Todos os outros dele ficam com a mesma categoria.',

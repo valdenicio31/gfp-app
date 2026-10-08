@@ -25,6 +25,17 @@ Cada publicação altera, no mesmo commit:
 
 ---
 
+## 2.2.0 — 08/10/2026 · Período, banco e conta — e painéis de receitas e despesas
+
+- Lançamentos abre sempre no mês atual. O campo Período escolhe um mês anterior, uma data inicial e uma final, ou todos os lançamentos; ao lado ficam os filtros de banco, conta e categoria.
+- A tela pede à API só o período escolhido (`from`/`to`), além dos mais recentes de qualquer data, que a importação usa para reconhecer fornecedor e categoria.
+- A conferência da exclusão por período passa a vir do servidor, para mostrar exatamente o que será apagado.
+- Central: "Entrou x saiu" virou "Receitas x despesas"; filtros de banco e conta (`GET /dashboard?bank_id=&account_id=`, com `bank_id=none` para contas sem banco) ou tudo consolidado. Agenda, metas, orçamento e cartões continuam consolidados.
+- Central: abas Receitas e Despesas, por tipo e por mês no ano atual e o total dos últimos cinco anos (`ano_atual` na resposta de `/dashboard`). Regra em `api/src/painel.js`.
+- Empréstimos: parcelas pagas e a pagar, juros pagos e a pagar, economia por antecipação e a listagem dos contratos. O desconto de uma antecipação sai dos juros pagos e entra só na economia (`custoDaParcela`).
+- O alerta da reserva de emergência deixou de mencionar família.
+- Testes: `tests/painel.test.mjs`.
+
 ## 2.1.0 — 05/10/2026 · A categoria acompanha o fornecedor
 
 - Ao incluir ou alterar um lançamento com fornecedor ou cliente, a categoria é aplicada a todos os outros lançamentos do mesmo parceiro, inclusive os que tinham outra categoria. Transferências ficam de fora.
