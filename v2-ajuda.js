@@ -299,6 +299,23 @@ const MANUAL = [
     ]
   },
   {
+    id: 'assinatura', titulo: 'Assinatura: teste grátis, planos e cancelamento', emoji: '💜',
+    resumo: 'Toda conta nova começa com 14 dias de teste. Depois, você escolhe o plano mensal ou o anual.',
+    passos: [
+      'O selo no pé da barra lateral mostra a situação da sua conta. Clique nele, ou em <b>Assinatura</b> no menu, para ver os detalhes.',
+      '<b>Teste grátis</b> — 14 dias com tudo liberado, sem cartão. Nada é cobrado sozinho no fim.',
+      'Para assinar, escolha <b>Mensal</b> (R$ 9,90 por mês, no cartão) ou <b>Anual</b> (R$ 69,90 por ano, no cartão, Pix ou boleto), informe nome e CPF e clique em <b>Contratar e ir para o pagamento</b>.',
+      'A fatura abre em outra aba, na página do Asaas, que processa o pagamento. Depois de pagar, volte e use <b>Já paguei — atualizar</b>: a liberação é automática e leva alguns instantes.',
+      '<b>Cancelar a assinatura</b> interrompe as renovações. O acesso completo continua até o fim do período já pago.',
+      'Nos <b>7 primeiros dias</b> aparece o botão <b>Desistir e receber o dinheiro de volta</b>: o valor é estornado por inteiro.'
+    ],
+    dicas: [
+      'Se o teste acabar ou o pagamento ficar mais de 10 dias em atraso, a conta fica <b>só para consulta</b>: você continua vendo e exportando tudo, e volta a lançar assim que assinar ou pagar. Seus dados não são apagados.',
+      'O GFP não vê nem guarda o número do seu cartão. O CPF é exigido para emitir a cobrança e vai direto para o Asaas.',
+      'A assinatura renova sozinha. A data da próxima cobrança fica sempre visível na tela Assinatura.'
+    ]
+  },
+  {
     id: 'celular', titulo: 'Instalar no celular', emoji: '📱',
     resumo: 'O GFP funciona como aplicativo no seu telefone, sem passar por loja.',
     imagem: 'ajuda/celular.webp', legenda: 'A mesma tela, ajustada para o telefone.',

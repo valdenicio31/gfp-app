@@ -25,6 +25,15 @@ Cada publicação altera, no mesmo commit:
 
 ---
 
+## 2.3.0 — 08/10/2026 · Assinatura: teste grátis, planos e pagamento
+
+- Licença de verdade. `api/src/licenca.js` calcula a situação da conta (cortesia, teste, ativa, atrasada, suspensa, cancelada, encerrada) e o acesso (total ou só consulta). Toda rota autenticada que grava passa pela conferência em `requireAuth` e responde 402 quando a conta está só para consulta; leitura e exportação continuam liberadas.
+- Cobrança pelo Asaas em `api/src/cobranca.js`: `GET /billing/license`, `POST /billing/subscribe` (cria cliente e assinatura e devolve a fatura), `POST /billing/cancel`, `POST /billing/refund` (arrependimento em 7 dias) e `POST /billing/webhook/asaas` (avisos de pagamento, protegidos por senha no cabeçalho e sem reprocessar aviso repetido). O webhook é cadastrado no Asaas na subida da API.
+- Mensal só no cartão; anual com cartão, Pix ou boleto. O GFP não recebe dados de cartão, e o CPF informado vai direto para o Asaas, sem ser gravado.
+- Migração `016_cobranca.sql`: planos `mensal` e `anual`, colunas de assinatura e pagamento, tabela `webhook_events`. Contas criadas antes de 08/10/2026 11h30 ficam de cortesia, liberadas sem prazo. Conta nova nasce com 14 dias de teste.
+- Tela Assinatura (`v2-assinatura.js`), selo da licença na barra lateral e faixa de aviso. Termos de Uso ajustados: fim do teste e inadimplência deixam a conta só para consulta, em vez de bloqueada.
+- Testes: `tests/cobranca.test.mjs` cobre as regras e o ciclo completo contra PostgreSQL e um Asaas simulado.
+
 ## 2.2.1 — 08/10/2026 · Endereço próprio e servidor sempre ligado
 
 - Domínio próprio `gfp.viaiasolucoes.com` (CNAME para o site estático no Render) e API em instância paga, que não hiberna. Saíram do manual e da tela de Lançamentos os avisos de "servidor dormindo".

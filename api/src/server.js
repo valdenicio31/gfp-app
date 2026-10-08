@@ -7,14 +7,14 @@ import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { migrate, query, transaction } from './db.js';
-import { allowRoles, requireAuth, signToken } from './auth.js';
+import { allowRoles, requireAuth as autenticar, signToken } from './auth.js';
 import nodemailer from 'nodemailer';
 import passwordResetRouter from './password-reset.js';
 import { readFileSync } from 'node:fs';
 import { registrarEmprestimos } from './emprestimos.js';
 import { deveReplicar, replicarCategoriaDoFornecedor } from './categoria-fornecedor.js';
 import { recortePedido, sqlDoRecorte, parametrosDoRecorte, contaNoRecorte, painelDoAno } from './painel.js';
-import { registrarCobranca } from './cobranca.js';
+import { registrarCobranca, licencaDaFamilia, iniciarTeste, garantirWebhook } from './cobranca.js';
 
 // Versão publicada: a mesma do versao.js do site (o teste confere).
 const VERSAO = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -39,6 +39,27 @@ app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : false }));
 app.use(express.json({ limit: '300kb' }));
 app.use('/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30 }));
 app.use('/auth/password-reset', passwordResetRouter);
+
+/* Toda rota autenticada passa por aqui. Com a licença inativa — teste grátis
+   encerrado, assinatura vencida há mais de dez dias ou cancelada — a conta
+   fica só para consulta: ver e exportar continuam funcionando, e incluir,
+   alterar ou apagar esperam a contratação. As rotas de cobrança usam a
+   autenticação pura, senão ninguém conseguiria contratar para destravar. */
+function requireAuth(req, res, next) {
+  return autenticar(req, res, async () => {
+    if (req.method === 'GET') return next();
+    try {
+      const licenca = await licencaDaFamilia(query, req.auth.familyId);
+      if (licenca.acesso === 'consulta') {
+        return res.status(402).json({ error: 'Sua conta está só para consulta. Abra Assinatura para contratar e voltar a lançar.', code: 'licenca_inativa', situacao: licenca.situacao });
+      }
+    } catch (erro) {
+      // falha ao ler a licença não pode travar quem está em dia
+      console.error(`Licença não conferida: ${erro?.message || 'erro desconhecido'}`);
+    }
+    next();
+  });
+}
 
 app.get('/health', async (_req, res) => {
   try {
@@ -86,6 +107,8 @@ app.post('/auth/register-family', async (req, res) => {
         if (baseRole==='admin') adminProfileId=profileId;
       }
       await client.query("insert into memberships (family_id,user_id,role,status,profile_id) values ($1,$2,'admin','active',$3)", [familyId, userId, adminProfileId]);
+      // toda conta nova começa com 14 dias de teste grátis, sem cartão
+      await iniciarTeste((sql, params) => client.query(sql, params), familyId);
     });
     res.status(201).json({ token: signToken({ id: userId, family_id: familyId, role: 'admin' }) });
   } catch (error) {
@@ -1825,8 +1848,8 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 // Empréstimos: rotas em emprestimos.js, com o banco e a autenticação daqui.
 registrarEmprestimos(app, { query, transaction, requireAuth, allowRoles, contaGravavel, isUuid });
 
-// Cobrança (Asaas): rotas em cobranca.js. Por enquanto, só a conferência da conexão.
-registrarCobranca(app, { requireAuth });
+// Cobrança (Asaas): rotas em cobranca.js. Usam a autenticação pura — ver requireAuth acima.
+registrarCobranca(app, { query, requireAuth: autenticar, allowRoles });
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 app.use((error, _req, res, _next) => {
@@ -1837,6 +1860,8 @@ app.use((error, _req, res, _next) => {
 try {
   await migrate();
   app.listen(port, () => console.log(`gfp-familiar-api:${port}`));
+  // Avisa o Asaas para onde mandar as confirmações de pagamento. Não segura a subida.
+  garantirWebhook().then(r => console.log(`Asaas: webhook ${r.webhook}${r.motivo ? ` — ${r.motivo}` : ''}`)).catch(() => {});
 } catch (error) {
   console.error('Falha ao preparar o banco de dados', error.message);
   process.exit(1);

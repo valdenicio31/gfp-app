@@ -10,9 +10,21 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '2.2.1', data: '2026-10-08' };
+const GFP_VERSAO = { numero: '2.3.0', data: '2026-10-08' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '2.3.0', data: '2026-10-08', titulo: 'Assinatura: teste grátis, planos e pagamento',
+    resumo: 'Contas novas começam com 14 dias de teste, e a tela Assinatura permite contratar, acompanhar e cancelar.',
+    itens: [
+      ['novo', 'Teste grátis de 14 dias para toda conta nova, sem cartão.'],
+      ['novo', 'Tela Assinatura: plano mensal (R$ 9,90, no cartão) ou anual (R$ 69,90, no cartão, Pix ou boleto), com pagamento na página do Asaas.'],
+      ['novo', 'A situação da licença aparece na barra lateral, e um aviso surge quando há algo a fazer.'],
+      ['novo', 'Cancelamento pelo próprio sistema, com acesso até o fim do período pago, e desistência com estorno nos 7 primeiros dias.'],
+      ['novo', 'Com o teste encerrado ou a assinatura vencida há mais de 10 dias, a conta fica só para consulta: ver e exportar continuam funcionando.'],
+      ['melhoria', 'Contas criadas antes desta versão continuam liberadas, sem prazo.']
+    ]
+  },
   {
     numero: '2.2.1', data: '2026-10-08', titulo: 'Endereço próprio e servidor sempre ligado',
     resumo: 'O GFP passa a atender em gfp.viaiasolucoes.com, e o servidor não hiberna mais.',

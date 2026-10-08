@@ -791,3 +791,55 @@ body:not(.tela-emprestimos) #telaEmprestimos{display:none}
 }
 /* sem isto o gráfico de 12 barras empurra a coluna para fora da tela no celular */
 .pnl-duas>*{min-width:0}
+
+/* ---------- Assinatura: selo da licença, faixa de aviso e tela ---------- */
+body.tela-assinatura main>*:not(header):not(#telaAssinatura){display:none!important}
+body:not(.tela-assinatura) #telaAssinatura{display:none}
+#telaAssinatura{display:flex;flex-direction:column;gap:18px;margin-top:22px}
+.sidebar .license.clicavel{cursor:pointer}
+.sidebar .license.clicavel:hover{border-color:#5b4a86}
+.sidebar .license span[data-tom="ruim"]{color:#fecaca}
+.sidebar .license span[data-tom="atencao"]{color:#fde68a}
+.sidebar .license span[data-tom="info"]{color:#ddd6fe}
+/* dois ids de propósito: a faixa precisa vencer a regra que esconde tudo fora da tela aberta */
+main>#faixaLicenca#faixaLicenca{display:flex!important}
+.lic-faixa{flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between;border-radius:14px;padding:12px 16px;font-size:13.5px;border:1px solid var(--border);background:#fff;margin-bottom:4px}
+.lic-faixa span{flex:1;min-width:220px;line-height:1.45}
+.lic-faixa button{border:0;background:var(--purple);color:#fff;border-radius:9px;padding:10px 14px;font:800 12.5px/1 inherit;cursor:pointer;white-space:nowrap}
+.lic-faixa.info{background:#f9f5ff;border-color:#e0d4fb}
+.lic-faixa.atencao{background:#fffaf0;border-color:#f5e3c0}
+.lic-faixa.ruim{background:#fff7f7;border-color:#f3d3d3}
+.lic-situacao{gap:12px}
+.lic-situacao p{margin:0;color:#4b4459;line-height:1.55;max-width:78ch}
+.lic-situacao-topo{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.lic-situacao-topo b{font-size:15px}
+.lic-selo{display:inline-block;font-size:12px;font-weight:900;border-radius:99px;padding:5px 11px;background:#f3f1f6;color:var(--muted);white-space:nowrap}
+.lic-selo.bom{background:#ecfff2;color:#15803d}
+.lic-selo.info{background:#f1ebff;color:#5b21b6}
+.lic-selo.atencao{background:#fff4d6;color:#92600a}
+.lic-selo.ruim{background:#ffe9e9;color:#b91c1c}
+.lic-aguardando{background:#f9f5ff;border:1px solid #e0d4fb;border-radius:13px;padding:14px 16px;display:grid;gap:8px}
+.lic-aguardando span{color:#5b5169;font-size:13.5px;line-height:1.5}
+.lic-acoes{display:flex;flex-wrap:wrap;gap:9px 12px;align-items:center}
+.lic-acoes button,.lic-acoes a.lic-principal{border:1px solid var(--border);background:#fff;color:var(--text);border-radius:10px;padding:11px 15px;font:800 13px/1 inherit;cursor:pointer;text-decoration:none;display:inline-block}
+.lic-acoes button:hover{border-color:var(--purple);color:#5b21b6}
+.lic-acoes .lic-principal{background:var(--purple);border-color:var(--purple);color:#fff}
+.lic-acoes .lic-principal:hover{filter:brightness(1.08);color:#fff}
+.lic-acoes .lic-principal:disabled{opacity:.6;cursor:default}
+.lic-acoes .lic-discreto{border-color:transparent;background:transparent;color:var(--muted);font-weight:700;text-decoration:underline}
+.lic-acoes a:not(.lic-principal){color:#5b21b6;font-size:13px;font-weight:700}
+.lic-nota{display:block;color:var(--muted);font-size:12.5px;line-height:1.5;max-width:82ch}
+.lic-planos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.lic-plano{position:relative;border:2px solid var(--border);border-radius:16px;padding:18px;display:grid;gap:6px;cursor:pointer;background:#fff}
+.lic-plano.escolhido{border-color:var(--purple);background:#fbf9ff}
+.lic-plano input{position:absolute;top:16px;right:16px;accent-color:var(--purple);width:18px;height:18px}
+.lic-plano em{font-style:normal;font-size:11px;font-weight:900;color:#92600a;background:#fff4d6;border-radius:99px;padding:3px 9px;justify-self:start}
+.lic-plano b{font-size:15px}
+.lic-plano strong{font-size:26px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lic-plano strong small{font-size:13px;font-weight:600;color:var(--muted)}
+.lic-plano span{color:var(--muted);font-size:13px}
+.lic-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.lic-campos label{display:grid;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.lic-campos input{border:1px solid var(--border);border-radius:10px;padding:11px 12px;font:600 14px/1.2 inherit;color:var(--text)}
+.lic-campos input:focus{outline:2px solid var(--purple);outline-offset:1px;border-color:var(--purple)}
+@media(max-width:700px){.lic-planos,.lic-campos{grid-template-columns:1fr}}

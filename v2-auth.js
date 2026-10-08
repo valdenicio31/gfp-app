@@ -8,6 +8,8 @@ const authSafe=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','
 async function request(path,options={}){
   const response=await fetch(`${API_URL}${path}`,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
   const data=await response.json().catch(()=>({}));
+  // 402: a conta está só para consulta — a faixa de aviso e a tela Assinatura se atualizam
+  if(response.status===402&&typeof window.licencaInativa==='function') window.licencaInativa();
   if(!response.ok) throw new Error(data.error||'Não foi possível concluir a operação');
   return data;
 }
