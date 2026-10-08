@@ -1746,7 +1746,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   if (despesas > receitas && receitas > 0) {
     alertas.push({ nivel: 'atencao', titulo: 'As saídas passaram as entradas neste mês', detalhe: `Diferença de ${emReais(despesas - receitas)}`, onde: 'lancamentos' });
   }
-  if (!reserva) alertas.push({ nivel: 'info', titulo: 'A família ainda não tem reserva de emergência', detalhe: 'A recomendação comum é de três a seis meses de despesa', onde: 'metas' });
+  if (!reserva) alertas.push({ nivel: 'info', titulo: 'Você ainda não tem reserva de emergência', detalhe: 'A recomendação comum é de três a seis meses de despesa', onde: 'metas' });
   if (!alertas.length) alertas.push({ nivel: 'bom', titulo: 'Nada pedindo atenção agora', detalhe: 'Contas em dia, orçamento respeitado e saldos positivos' });
 
   /* Transferências do mês: dinheiro que andou entre as contas da própria
