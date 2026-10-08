@@ -5,7 +5,12 @@
 const pnl = { dados: null, mes: new Date().getMonth() + 1, ano: new Date().getFullYear(),
   // O gráfico mês a mês tem ano próprio: dá para olhar 2025 inteiro sem
   // tirar o resto do painel do mês corrente.
-  serieAno: new Date().getFullYear(), carregando: false, erro: '', demo: false };
+  serieAno: new Date().getFullYear(), carregando: false, erro: '', demo: false,
+  // 'geral' é o painel do mês; 'receitas' e 'despesas' são os painéis do ano corrente.
+  aba: 'geral',
+  // Recorte por banco e conta: vazio é tudo consolidado. 'none' são as contas sem banco.
+  banco: '', conta: '' };
+const PNL_SEM_BANCO = 'none';
 
 const NIVEIS = { ruim: '🔴', atencao: '🟡', bom: '🟢', info: '🔵' };
 
@@ -22,9 +27,9 @@ function painelDemonstracao() {
   }
   pnl.dados = {
     hoje: new Date().toLocaleDateString('sv-SE'), year: pnl.ano, month: pnl.mes,
-    contas: [{ id: 'd1', name: 'Nubank · corrente', balance_cents: 875000, banco: 'Nubank' },
-      { id: 'd2', name: 'Itaú · corrente', balance_cents: 320000, banco: 'Itaú' },
-      { id: 'd3', name: 'Dinheiro', balance_cents: 18000, banco: null }],
+    contas: [{ id: 'd1', name: 'Nubank · corrente', balance_cents: 875000, bank_id: 'b1', banco: 'Nubank' },
+      { id: 'd2', name: 'Itaú · corrente', balance_cents: 320000, bank_id: 'b2', banco: 'Itaú' },
+      { id: 'd3', name: 'Dinheiro', balance_cents: 18000, bank_id: null, banco: null }],
     saldo_total_cents: 1213000,
     mes: { receitas_cents: 980000, despesas_cents: 715000, resultado_cents: 265000, quantos: 34 },
     mes_anterior: { receitas_cents: 1020000, despesas_cents: 810000, resultado_cents: 210000 },
@@ -64,6 +69,50 @@ function painelDemonstracao() {
       { nivel: 'ruim', titulo: '1 conta venceu e não foi baixada', detalhe: 'Internet (05)', onde: 'calendario' },
       { nivel: 'atencao', titulo: '1 conta vence nos próximos dias', detalhe: 'Plano de saúde (20)', onde: 'calendario' }]
   };
+
+  /* Painéis de receitas e de despesas: o ano corrente e os últimos cinco. */
+  const hoje = new Date(), anoHoje = hoje.getFullYear(), mesHoje = hoje.getMonth() + 1;
+  const mesesDoAno = base.map(([entra, sai], i) => ({ ano: anoHoje, mes: i + 1, ym: `${anoHoje}-${String(i + 1).padStart(2, '0')}`,
+    receitas_cents: i + 1 > mesHoje ? 0 : entra * 1000, despesas_cents: i + 1 > mesHoje ? 0 : sai * 1000 }));
+  const totalDe = campo => mesesDoAno.reduce((t, m) => t + m[campo], 0);
+  const repartir = (total, partes) => partes.map(([category, peso, quantos]) => ({ category, total_cents: Math.round(total * peso), quantos: quantos * mesHoje }));
+  pnl.dados.contas_todas = pnl.dados.contas.map(c => ({ id: c.id, name: c.name, bank_id: c.bank_id, banco: c.banco }));
+  pnl.dados.filtro = { account_id: null, bank_id: null };
+  pnl.dados.ano_atual = {
+    ano: anoHoje, meses: mesesDoAno,
+    receitas: { total_cents: totalDe('receitas_cents'), quantos: 3 * mesHoje,
+      por_tipo: repartir(totalDe('receitas_cents'), [['Salário', 0.82, 1], ['Freelance', 0.12, 1], ['Rendimentos', 0.06, 1]]) },
+    despesas: { total_cents: totalDe('despesas_cents'), quantos: 26 * mesHoje,
+      por_tipo: repartir(totalDe('despesas_cents'), [['Casa', 0.37, 4], ['Alimentação', 0.26, 11], ['Transporte', 0.17, 6], ['Educação', 0.13, 2], ['Saúde', 0.07, 3]]) },
+    ultimos_anos: [[7900000, 6700000], [8600000, 7100000], [9500000, 7800000], [10800000, 8400000]]
+      .map(([receitas_cents, despesas_cents], i) => ({ ano: anoHoje - 4 + i, receitas_cents, despesas_cents }))
+      .concat({ ano: anoHoje, receitas_cents: totalDe('receitas_cents'), despesas_cents: totalDe('despesas_cents') })
+  };
+  recortarDemonstracao();
+}
+
+/* Na demonstração não há lançamento de verdade para filtrar: o recorte por
+   banco ou conta mostra as contas escolhidas e reduz os números na proporção
+   do saldo delas, só para a tela responder ao filtro. */
+function recortarDemonstracao() {
+  const d = pnl.dados;
+  if (!pnl.banco && !pnl.conta) return;
+  const dentro = c => (!pnl.conta || c.id === pnl.conta)
+    && (!pnl.banco || (pnl.banco === PNL_SEM_BANCO ? !c.bank_id : c.bank_id === pnl.banco));
+  const todas = d.contas;
+  d.contas = todas.filter(dentro);
+  d.saldo_total_cents = d.contas.reduce((t, c) => t + c.balance_cents, 0);
+  d.filtro = { account_id: pnl.conta || null, bank_id: pnl.banco || null };
+  const fator = d.saldo_total_cents / (todas.reduce((t, c) => t + c.balance_cents, 0) || 1);
+  const escalar = valor => {
+    if (Array.isArray(valor)) return valor.forEach(escalar);
+    if (!valor || typeof valor !== 'object') return;
+    for (const chave of Object.keys(valor)) {
+      if (chave.endsWith('_cents') && typeof valor[chave] === 'number') valor[chave] = Math.round(valor[chave] * fator);
+      else escalar(valor[chave]);
+    }
+  };
+  ['mes', 'mes_anterior', 'serie_meses', 'serie_anos', 'por_categoria', 'por_fornecedor', 'transferencias', 'ano_atual'].forEach(chave => escalar(d[chave]));
 }
 
 // Oferece os anos que têm movimento, mais o corrente e o que está aberto —
@@ -79,13 +128,16 @@ async function carregarPainel() {
   pnl.carregando = true; pnl.erro = '';
   desenharPainel();
   try {
-    if (window.demoMode || !sessionStorage.getItem('gfp_token')) {
+    const demonstracao = Boolean(window.demoMode || !sessionStorage.getItem('gfp_token'));
+    // banco e conta escolhidos na demonstração não existem na conta de verdade, e vice-versa
+    if (pnl.dados && demonstracao !== pnl.demo) { pnl.banco = ''; pnl.conta = ''; }
+    if (demonstracao) {
       pnl.demo = true;
       painelDemonstracao();
     } else {
       pnl.demo = false;
       const [dados, categorias] = await Promise.all([
-        request(`/dashboard?year=${pnl.ano}&month=${pnl.mes}&serie_ano=${pnl.serieAno}`, { headers: authHeaders(), cache: 'no-store' }),
+        request(`/dashboard?year=${pnl.ano}&month=${pnl.mes}&serie_ano=${pnl.serieAno}${pnl.conta ? `&account_id=${encodeURIComponent(pnl.conta)}` : ''}${pnl.banco ? `&bank_id=${encodeURIComponent(pnl.banco)}` : ''}`, { headers: authHeaders(), cache: 'no-store' }),
         request('/categories', { headers: authHeaders(), cache: 'no-store' })
       ]);
       pnl.dados = dados;
@@ -118,7 +170,7 @@ function barrasDoPeriodo(linhas, rotulo) {
   return `<div class="pnl-grafico">
     ${linhas.map(linha => {
       const entra = Number(linha.receitas_cents), sai = Number(linha.despesas_cents);
-      return `<div class="pnl-col" title="${rotulo(linha)}: entrou ${reais(entra)}, saiu ${reais(sai)}">
+      return `<div class="pnl-col" title="${rotulo(linha)}: receitas ${reais(entra)}, despesas ${reais(sai)}">
         <div class="pnl-duplo">
           <i class="entra" style="height:${Math.max((entra / teto) * 100, entra ? 2 : 0)}%"></i>
           <i class="sai" style="height:${Math.max((sai / teto) * 100, sai ? 2 : 0)}%"></i>
@@ -129,8 +181,29 @@ function barrasDoPeriodo(linhas, rotulo) {
   </div>`;
 }
 
-function listaDeFatias(linhas, campoNome, total, comChip) {
-  if (!linhas.length) return '<div class="lanc-vazio">Nada lançado neste mês ainda.</div>';
+/* Uma série só — receitas ou despesas — com o valor escrito em cima de cada barra. */
+const valorCurto = cents => {
+  const v = Math.abs(Number(cents)) / 100;
+  if (v >= 1e6) return `${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
+  if (v >= 1e3) return `${(v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`;
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+};
+function barrasDeUmaSerie(linhas, campo, classe, rotulo) {
+  const teto = Math.max(...linhas.map(l => Number(l[campo])), 1);
+  return `<div class="pnl-grafico uma">
+    ${linhas.map(linha => {
+      const valor = Number(linha[campo]);
+      return `<div class="pnl-col" title="${rotulo(linha)}: ${reais(valor)}">
+        <b class="pnl-valor">${valor ? valorCurto(valor) : ''}</b>
+        <div class="pnl-duplo"><i class="${classe}" style="height:${Math.max((valor / teto) * 100, valor ? 2 : 0)}%"></i></div>
+        <span>${rotulo(linha)}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function listaDeFatias(linhas, campoNome, total, comChip, vazio = 'Nada lançado neste mês ainda.') {
+  if (!linhas.length) return `<div class="lanc-vazio">${vazio}</div>`;
   return `<div class="pnl-fatias">${linhas.map(linha => {
     const valor = Number(linha.total_cents);
     const parte = total ? Math.round((valor / total) * 100) : 0;
@@ -140,6 +213,120 @@ function listaDeFatias(linhas, campoNome, total, comChip) {
       <span class="pnl-fatia-valor"><b>${reais(valor)}</b><small>${parte}% · ${linha.quantos} lanç.</small></span>
     </div>`;
   }).join('')}</div>`;
+}
+
+/* ---------- abas e recorte por banco e conta ---------- */
+
+// Bancos e contas para o filtro: sempre a lista inteira, mesmo com recorte aplicado.
+function contasParaOFiltro(d) { return d.contas_todas || d.contas || []; }
+function bancosParaOFiltro(d) {
+  const contas = contasParaOFiltro(d);
+  const bancos = new Map();
+  contas.forEach(c => { if (c.bank_id) bancos.set(c.bank_id, c.banco || 'Banco sem nome'); });
+  const lista = [...bancos].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  if (lista.length && contas.some(c => !c.bank_id)) lista.push({ id: PNL_SEM_BANCO, nome: 'Sem banco (dinheiro e outros)' });
+  return lista;
+}
+const contasDoBancoNoPainel = (d, banco) => contasParaOFiltro(d)
+  .filter(c => !banco || (banco === PNL_SEM_BANCO ? !c.bank_id : c.bank_id === banco));
+
+function barraDoPainel(d) {
+  const bancos = bancosParaOFiltro(d);
+  const contas = contasDoBancoNoPainel(d, pnl.banco);
+  const aba = (id, rotulo) => `<button role="tab" data-aba="${id}" aria-selected="${pnl.aba === id}">${rotulo}</button>`;
+  const recortado = Boolean(pnl.banco || pnl.conta);
+  const nomeDoRecorte = pnl.conta
+    ? contasParaOFiltro(d).find(c => c.id === pnl.conta)?.name
+    : bancos.find(b => b.id === pnl.banco)?.nome;
+  return `
+    <div class="pnl-barra">
+      <div class="pnl-abas" role="tablist" aria-label="Painéis da Central">
+        ${aba('geral', '🏠 Visão geral')}${aba('receitas', '💰 Receitas')}${aba('despesas', '💸 Despesas')}
+      </div>
+      ${contasParaOFiltro(d).length ? `<div class="lanc-recorte pnl-recorte">
+        ${bancos.length ? `<label>Banco
+          <select id="pnlBanco">
+            <option value="">Todos os bancos</option>
+            ${bancos.map(b => `<option value="${seguro(b.id)}" ${pnl.banco === b.id ? 'selected' : ''}>${seguro(b.nome)}</option>`).join('')}
+          </select></label>` : ''}
+        <label>Conta
+          <select id="pnlConta">
+            <option value="">${pnl.banco ? 'Todas as contas do banco' : 'Todas as contas (consolidado)'}</option>
+            ${contas.map(c => `<option value="${seguro(c.id)}" ${pnl.conta === c.id ? 'selected' : ''}>${seguro(c.name)}</option>`).join('')}
+          </select></label>
+      </div>` : ''}
+    </div>
+    ${recortado ? `<div class="pnl-recorte-aviso">
+      <span>Mostrando só <b>${seguro(nomeDoRecorte || 'o recorte escolhido')}</b>: saldo, receitas, despesas, gráficos e transferências.
+        Contas a pagar, metas, orçamento e cartões continuam sendo de todas as contas.</span>
+      <button id="pnlConsolidar">Ver tudo consolidado</button>
+    </div>` : ''}`;
+}
+
+/* ---------- painéis de Receitas e de Despesas ---------- */
+
+/* Sempre o ano corrente — por tipo e mês a mês — e os últimos cinco anos.
+   "Tipo" é a categoria do lançamento. */
+function painelDoAno(d, qual) {
+  const ano = d.ano_atual;
+  if (!ano) return '<div class="lanc-vazio"><b>Painel indisponível</b>O servidor ainda não enviou estes números. Use Atualizar em alguns instantes.</div>';
+  const receitas = qual === 'receitas';
+  const lado = receitas ? ano.receitas : ano.despesas;
+  const campo = receitas ? 'receitas_cents' : 'despesas_cents';
+  const classe = receitas ? 'entra' : 'sai';
+  const nome = receitas ? 'Receitas' : 'Despesas';
+  const nomeMinusculo = nome.toLowerCase();
+
+  // A média considera os meses que já começaram: dividir por doze no meio do ano puxaria o número para baixo.
+  const hoje = new Date();
+  const mesesCorridos = hoje.getFullYear() === ano.ano ? hoje.getMonth() + 1 : 12;
+  const media = Math.round(lado.total_cents / mesesCorridos);
+  const maior = ano.meses.reduce((melhor, m) => (m[campo] > melhor[campo] ? m : melhor), ano.meses[0]);
+  const anos = ano.ultimos_anos;
+  const totalCincoAnos = anos.reduce((t, a) => t + a[campo], 0);
+
+  return `
+    <div class="pnl-kpis quatro">
+      <article class="pnl-kpi ${receitas ? 'verde' : 'vermelho'}">
+        <span>${nome} em ${ano.ano}</span><strong>${reais(lado.total_cents)}</strong>
+        <small>${lado.quantos} ${lado.quantos === 1 ? 'lançamento' : 'lançamentos'} no ano</small>
+      </article>
+      <article class="pnl-kpi">
+        <span>Média por mês</span><strong>${reais(media)}</strong>
+        <small>${mesesCorridos === 12 ? 'nos doze meses' : `de janeiro a ${MESES_NOME[mesesCorridos - 1].toLowerCase()}`}</small>
+      </article>
+      <article class="pnl-kpi">
+        <span>${receitas ? 'Mês de maior receita' : 'Mês de maior despesa'}</span><strong>${maior[campo] ? MESES_NOME[maior.mes - 1] : '—'}</strong>
+        <small>${maior[campo] ? reais(maior[campo]) : 'sem movimento no ano'}</small>
+      </article>
+      <article class="pnl-kpi roxo">
+        <span>Últimos 5 anos</span><strong>${reais(totalCincoAnos)}</strong>
+        <small>${anos[0].ano} a ${anos[anos.length - 1].ano}</small>
+      </article>
+    </div>
+
+    <div class="pnl-duas">
+      <section class="pnl-bloco">
+        <div class="met-cabeca"><div><h3>🏷️ ${nome} por tipo</h3><p>Por categoria, em ${ano.ano}.</p></div></div>
+        ${listaDeFatias(lado.por_tipo, 'category', lado.total_cents, true, `Nenhuma ${receitas ? 'receita' : 'despesa'} lançada em ${ano.ano} ainda.`)}
+      </section>
+      <section class="pnl-bloco">
+        <div class="met-cabeca"><div><h3>📊 ${nome} por mês</h3><p>Janeiro a dezembro de ${ano.ano}.</p></div></div>
+        ${barrasDeUmaSerie(ano.meses, campo, classe, linha => MESES_NOME[linha.mes - 1].slice(0, 3).toLowerCase())}
+      </section>
+    </div>
+
+    <section class="pnl-bloco">
+      <div class="met-cabeca"><div><h3>📅 ${nome} dos últimos 5 anos</h3><p>${anos[0].ano} a ${anos[anos.length - 1].ano}. O ano corrente conta só até hoje.</p></div></div>
+      ${barrasDeUmaSerie(anos, campo, classe, linha => String(linha.ano))}
+      <div class="pnl-anos">${anos.map((linha, i) => {
+        const antes = i ? anos[i - 1][campo] : 0;
+        const mudou = antes ? Math.round(((linha[campo] - antes) / antes) * 100) : null;
+        // subir é bom para receita e ruim para despesa
+        const tom = mudou === null || mudou === 0 ? 'neutro' : (mudou > 0) === receitas ? 'bom' : 'ruim';
+        return `<span><b>${linha.ano}</b> ${nomeMinusculo} de ${reais(linha[campo])} · <em class="${tom}">${mudou === null ? 'sem ano anterior para comparar' : mudou === 0 ? 'igual ao ano anterior' : `${mudou > 0 ? '▲' : '▼'} ${Math.abs(mudou)}% sobre ${linha.ano - 1}`}</em></span>`;
+      }).join('')}</div>
+    </section>`;
 }
 
 /* ---------- a tela ---------- */
@@ -164,22 +351,29 @@ function desenharPainel() {
   const totalDespesas = despesasCat.reduce((t, c) => t + Number(c.total_cents), 0);
   const totalReceitas = receitasCat.reduce((t, c) => t + Number(c.total_cents), 0);
   const totalFornecedores = d.por_fornecedor.reduce((t, f) => t + Number(f.total_cents), 0);
-  const semNada = !d.mes.quantos && !d.contas.length;
+  const semNada = !d.mes.quantos && !contasParaOFiltro(d).length;
+
+  const anoDosPaineis = d.ano_atual?.ano || new Date().getFullYear();
+  const titulo = pnl.aba === 'receitas' ? `Receitas de ${anoDosPaineis}` : pnl.aba === 'despesas' ? `Despesas de ${anoDosPaineis}` : `${MESES_NOME[d.month - 1]} de ${d.year}`;
 
   alvo.innerHTML = `
     <div class="pnl-topo">
       <div class="lanc-head">
         <small>SEU PAINEL</small>
-        <h2>${MESES_NOME[d.month - 1]} de ${d.year}</h2>
-        <p>Tudo aqui vem dos seus lançamentos — a cada movimentação nova, estes números mudam.${pnl.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
+        <h2>${titulo}</h2>
+        <p>${pnl.aba === 'geral'
+          ? 'Tudo aqui vem dos seus lançamentos — a cada movimentação nova, estes números mudam.'
+          : `Por tipo e mês a mês, sempre no ano atual, e o total de cada um dos últimos cinco anos.`}${pnl.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
       </div>
       <div class="pnl-periodo">
-        <button id="pnlMesAnterior" title="Mês anterior">◀</button>
+        ${pnl.aba === 'geral' ? `<button id="pnlMesAnterior" title="Mês anterior">◀</button>
         <span>${MESES_NOME[d.month - 1]} ${d.year}</span>
-        <button id="pnlMesSeguinte" title="Mês seguinte">▶</button>
+        <button id="pnlMesSeguinte" title="Mês seguinte">▶</button>` : ''}
         <button class="pnl-atualizar" id="pnlAtualizar">${svg('atualizar', 'ico-s')}Atualizar</button>
       </div>
     </div>
+
+    ${barraDoPainel(d)}
 
     ${pnl.erro ? `<div class="lanc-falha"><div>${svg('alerta')}<span><b>Os números podem estar velhos</b><small>${seguro(pnl.erro)}</small></span></div><button id="pnlTentarDeNovo">Tentar de novo</button></div>` : ''}
 
@@ -189,17 +383,18 @@ function desenharPainel() {
       <div><button data-ir="lancamentos">🧾 Ir para Lançamentos</button><button data-ir="cadastros">🗂️ Cadastrar conta</button></div>
     </div>` : ''}
 
+    ${pnl.aba === 'geral' ? `
     <div class="pnl-kpis">
       <article class="pnl-kpi roxo">
         <span>Saldo somando as contas</span><strong>${reais(d.saldo_total_cents)}</strong>
         <small>${d.contas.length ? `${d.contas.length} ${d.contas.length === 1 ? 'conta' : 'contas'} · saldo de hoje` : 'nenhuma conta cadastrada'}</small>
       </article>
       <article class="pnl-kpi verde">
-        <span>Entrou no mês</span><strong>${reais(d.mes.receitas_cents)}</strong>
+        <span>Receitas do mês</span><strong>${reais(d.mes.receitas_cents)}</strong>
         ${setinha(variacao(d.mes.receitas_cents, d.mes_anterior.receitas_cents), true)}
       </article>
       <article class="pnl-kpi vermelho">
-        <span>Saiu no mês</span><strong>${reais(d.mes.despesas_cents)}</strong>
+        <span>Despesas do mês</span><strong>${reais(d.mes.despesas_cents)}</strong>
         ${setinha(variacao(d.mes.despesas_cents, d.mes_anterior.despesas_cents), false)}
       </article>
       <article class="pnl-kpi ${d.mes.resultado_cents >= 0 ? 'azul' : 'vermelho'}">
@@ -223,7 +418,7 @@ function desenharPainel() {
       <div class="met-cabeca">
         <div><h3>🔁 Transferências entre suas contas</h3>
           <p>${d.transferencias.quantas} ${d.transferencias.quantas === 1 ? 'transferência' : 'transferências'} no mês,
-            somando ${reais(d.transferencias.total_cents)}. Dinheiro que mudou de banco — não conta como entrada nem como saída.</p></div>
+            somando ${reais(d.transferencias.total_cents)}. Dinheiro que mudou de banco — não conta como receita nem como despesa.</p></div>
       </div>
       <div class="pnl-transferencias">
         ${d.transferencias.pares.map(par => `
@@ -239,14 +434,14 @@ function desenharPainel() {
 
     <section class="pnl-bloco">
       <div class="met-cabeca">
-        <div><h3>📊 Entrou x saiu, mês a mês</h3><p>Janeiro a dezembro de ${d.serie_ano || pnl.serieAno}.</p></div>
+        <div><h3>📊 Receitas x despesas, mês a mês</h3><p>Janeiro a dezembro de ${d.serie_ano || pnl.serieAno}.</p></div>
         <div class="pnl-cabeca-dir">
           <label class="pnl-ano-escolha">Ano
             <select id="pnlSerieAno">
               ${anosParaOGrafico(d).map(ano => `<option value="${ano}" ${ano === (d.serie_ano || pnl.serieAno) ? 'selected' : ''}>${ano}</option>`).join('')}
             </select>
           </label>
-          <div class="pnl-legenda"><span><i class="entra"></i>Entrou</span><span><i class="sai"></i>Saiu</span></div>
+          <div class="pnl-legenda"><span><i class="entra"></i>Receitas</span><span><i class="sai"></i>Despesas</span></div>
         </div>
       </div>
       ${barrasDoPeriodo(d.serie_meses, linha => MESES_NOME[linha.mes - 1].slice(0, 3).toLowerCase())}
@@ -254,13 +449,13 @@ function desenharPainel() {
 
     ${d.serie_anos.length > 1 ? `<section class="pnl-bloco">
       <div class="met-cabeca">
-        <div><h3>📅 Entrou x saiu, ano a ano</h3><p>O ano corrente conta só até hoje.</p></div>
-        <div class="pnl-legenda"><span><i class="entra"></i>Entrou</span><span><i class="sai"></i>Saiu</span></div>
+        <div><h3>📅 Receitas x despesas, ano a ano</h3><p>O ano corrente conta só até hoje.</p></div>
+        <div class="pnl-legenda"><span><i class="entra"></i>Receitas</span><span><i class="sai"></i>Despesas</span></div>
       </div>
       ${barrasDoPeriodo(d.serie_anos, linha => String(linha.ano))}
       <div class="pnl-anos">${d.serie_anos.map(linha => {
         const sobra = Number(linha.receitas_cents) - Number(linha.despesas_cents);
-        return `<span><b>${linha.ano}</b> entrou ${reais(linha.receitas_cents)} · saiu ${reais(linha.despesas_cents)} · <em class="${sobra >= 0 ? 'bom' : 'ruim'}">${sobra >= 0 ? 'sobrou' : 'faltou'} ${reais(Math.abs(sobra))}</em></span>`;
+        return `<span><b>${linha.ano}</b> receitas ${reais(linha.receitas_cents)} · despesas ${reais(linha.despesas_cents)} · <em class="${sobra >= 0 ? 'bom' : 'ruim'}">${sobra >= 0 ? 'sobrou' : 'faltou'} ${reais(Math.abs(sobra))}</em></span>`;
       }).join('')}</div>
     </section>` : ''}
 
@@ -334,7 +529,7 @@ function desenharPainel() {
           <span class="cal-valor ${p.kind === 'receivable' ? 'receber' : 'pagar'}">${p.kind === 'receivable' ? '+' : '−'} ${reais(p.amount_cents).replace('R$', '').trim()}</span>
           <button class="cal-baixar" data-ir="calendario">Abrir</button>
         </div>`).join('')}</div>
-    </section>` : ''}`;
+    </section>` : ''}` : painelDoAno(d, pnl.aba)}`;
 
   ligarEventosPainel();
   ajustarCabecalho(d);
@@ -361,6 +556,23 @@ function ligarEventosPainel() {
   const tela = document.querySelector('#telaCentral');
   tela.querySelector('#pnlTentarDeNovo')?.addEventListener('click', carregarPainel);
   tela.querySelector('#pnlAtualizar')?.addEventListener('click', carregarPainel);
+  tela.querySelectorAll('[data-aba]').forEach(botao => botao.addEventListener('click', () => {
+    pnl.aba = botao.dataset.aba;
+    desenharPainel();
+  }));
+  tela.querySelector('#pnlBanco')?.addEventListener('change', evento => {
+    pnl.banco = evento.target.value;
+    pnl.conta = '';   // a conta escolhida pode não ser desse banco
+    carregarPainel();
+  });
+  tela.querySelector('#pnlConta')?.addEventListener('change', evento => {
+    pnl.conta = evento.target.value;
+    carregarPainel();
+  });
+  tela.querySelector('#pnlConsolidar')?.addEventListener('click', () => {
+    pnl.banco = ''; pnl.conta = '';
+    carregarPainel();
+  });
   tela.querySelector('#pnlSerieAno')?.addEventListener('change', evento => {
     pnl.serieAno = Number(evento.target.value) || pnl.serieAno;
     carregarPainel();

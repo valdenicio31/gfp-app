@@ -126,22 +126,39 @@ export function ordenarCandidatos(parcela, lancamentos) {
 
 /* ---------- resumo do contrato (espelha resumoDoContrato da tela) ---------- */
 
+/* O que cada parcela paga custou de verdade.
+   - Antecipou e o banco deu desconto: o desconto é juro que deixou de ser
+     cobrado. Ele sai dos juros pagos e entra na economia.
+   - Pagou a mais (atraso com multa): o excesso entra como juro pago.
+   Parcela em aberto devolve zeros. */
+export function custoDaParcela(p) {
+  if (!p.paid_on) return { pago_cents: 0, juros_pagos_cents: 0, economia_cents: 0 };
+  const valor = Number(p.amount_cents);
+  const pago = Number(p.paid_cents ?? p.amount_cents);
+  const juros = Number(p.interest_cents || 0);
+  return {
+    pago_cents: pago,
+    juros_pagos_cents: Math.min(Math.max(juros + (pago - valor), 0), pago),
+    economia_cents: Math.max(valor - pago, 0)
+  };
+}
+
 export function resumir(principalCents, parcelas, hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })) {
   const pagas = parcelas.filter(p => p.paid_on);
   const soma = (lista, f) => lista.reduce((s, p) => s + Number(f(p) || 0), 0);
   const total = soma(parcelas, p => p.amount_cents);
-  const previstoPagas = soma(pagas, p => p.amount_cents);
-  const pagoDeFato = soma(pagas, p => p.paid_cents ?? p.amount_cents);
   const abertas = parcelas.filter(p => !p.paid_on);
   const proxima = abertas.sort((a, b) => String(a.due_on).localeCompare(String(b.due_on)))[0] || null;
   return {
     principal_cents: Number(principalCents),
     total_contratado_cents: total,
     juros_total_cents: Math.max(total - Number(principalCents), 0),
-    juros_pagos_cents: soma(pagas, p => p.interest_cents),
-    pago_cents: pagoDeFato,
-    economia_cents: Math.max(previstoPagas - pagoDeFato, 0),
+    juros_pagos_cents: soma(pagas, p => custoDaParcela(p).juros_pagos_cents),
+    juros_a_pagar_cents: soma(abertas, p => p.interest_cents),
+    pago_cents: soma(pagas, p => custoDaParcela(p).pago_cents),
+    economia_cents: soma(pagas, p => custoDaParcela(p).economia_cents),
     parcelas_pagas: pagas.length,
+    parcelas_a_pagar: abertas.length,
     parcelas_total: parcelas.length,
     saldo_devedor_cents: soma(abertas, p => p.amount_cents),
     parcelas_atrasadas: abertas.filter(p => String(p.due_on) < hoje).length,

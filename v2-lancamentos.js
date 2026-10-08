@@ -1,4 +1,6 @@
 /* Tela de Lançamentos do GFP.
+   Abre sempre no mês corrente; o período, o banco, a conta e a categoria
+   se escolhem na barra de filtros acima da tabela.
    Filtro por coluna igual ao AutoFiltro do Excel, seleção de linhas,
    alteração e exclusão unitária, por seleção ou por período.
    Funciona com a API quando o usuário está logado e com dados de
@@ -46,8 +48,20 @@ const mensagemAmigavel = texto => /failed to fetch|networkerror|load failed/i.te
   ? 'não consegui falar com o servidor'
   : String(texto || 'erro desconhecido');
 
+const hojeLocal = () => new Date().toLocaleDateString('sv-SE');
+const mesCorrente = () => hojeLocal().slice(0, 7);
+const ultimoDiaDoMes = ym => new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
+const nomeDoMes = ym => `${MESES[Number(ym.slice(5, 7)) - 1]} de ${ym.slice(0, 4)}`;
+const SEM_BANCO = '__sem_banco__';
+
 const lanc = {
-  itens: [],
+  itens: [],          // o que a tabela mostra: os lançamentos do período escolhido
+  historico: [],      // os mais recentes de qualquer data — a importação aprende com eles
+  meses: [],          // meses que têm lançamento, para a lista de períodos
+  totalNoPeriodo: 0,
+  // modo 'mes' (um mês fechado ou o corrente), 'intervalo' (data inicial e final) ou 'tudo'
+  periodo: { modo: 'mes', mes: mesCorrente(), de: '', ate: '' },
+  banco: '',
   contas: [],
   filtros: { data: [], descricao: [], categoria: [], conta: [], valor: [] },
   ordem: { coluna: 'data', direcao: 'desc' },
@@ -74,7 +88,17 @@ const opcoesDeCategoria = atual => `<option value="">(sem categoria)</option>` +
 /* ---------- dados ---------- */
 
 function dadosDemonstracao() {
-  lanc.contas = [{ id: 'demo-nubank', name: 'Nubank · corrente' }, { id: 'demo-itau', name: 'Itaú · corrente' }, { id: 'demo-dinheiro', name: 'Dinheiro' }];
+  lanc.contas = [{ id: 'demo-nubank', name: 'Nubank · corrente', bank_id: 'demo-b-nubank', bank_name: 'Nubank' },
+    { id: 'demo-itau', name: 'Itaú · corrente', bank_id: 'demo-b-itau', bank_name: 'Itaú' },
+    { id: 'demo-dinheiro', name: 'Dinheiro', bank_id: null, bank_name: null }];
+  // As datas do exemplo andam com o calendário: o mês mais novo é sempre o corrente.
+  const [anoHoje, mesHoje] = mesCorrente().split('-').map(Number);
+  const trazerParaHoje = iso => {
+    const atras = 8 - Number(iso.slice(5, 7));
+    const alvo = new Date(anoHoje, mesHoje - 1 - atras, 1);
+    const ym = `${alvo.getFullYear()}-${String(alvo.getMonth() + 1).padStart(2, '0')}`;
+    return `${ym}-${String(Math.min(Number(iso.slice(8, 10)), ultimoDiaDoMes(ym))).padStart(2, '0')}`;
+  };
   const linhas = [
     ['2026-08-19', 'Mercado do mês — Assaí', 'expense', 84290, 'Alimentação', 'demo-nubank'],
     ['2026-08-18', 'Salário — ViaIA Soluções', 'income', 940000, 'Outros', 'demo-itau'],
@@ -96,10 +120,29 @@ function dadosDemonstracao() {
     ['2026-06-05', 'Material escolar', 'expense', 47600, 'Educação', 'demo-dinheiro']
   ];
   return linhas.map(([occurred_on, description, type, amount_cents, category, account_id], indice) => ({
-    id: `demo-${indice}`, occurred_on, description, type, amount_cents, category,
+    id: `demo-${indice}`, occurred_on: trazerParaHoje(occurred_on), description, type, amount_cents, category,
     account_id, account_name: lanc.contas.find(c => c.id === account_id).name, supplier: null
   }));
 }
+
+/* Datas inicial e final do período escolhido; null quando é "todos". */
+function limitesDoPeriodo() {
+  const { modo, mes, de, ate } = lanc.periodo;
+  if (modo === 'mes') return { de: `${mes}-01`, ate: `${mes}-${String(ultimoDiaDoMes(mes)).padStart(2, '0')}` };
+  if (modo === 'intervalo' && de && ate) return { de, ate };
+  return null;
+}
+function rotuloDoPeriodo() {
+  const { modo, mes } = lanc.periodo;
+  const limites = limitesDoPeriodo();
+  if (modo === 'mes') return nomeDoMes(mes);
+  if (limites) return `${dataBr(limites.de)} a ${dataBr(limites.ate)}`;
+  return 'Todos os lançamentos';
+}
+const noPeriodo = linha => {
+  const limites = limitesDoPeriodo();
+  return !limites || (linha.occurred_on >= limites.de && linha.occurred_on <= limites.ate);
+};
 
 async function carregarLancamentos() {
   lanc.carregando = true;
@@ -107,23 +150,40 @@ async function carregarLancamentos() {
   desenharTela();
   try {
     if (window.demoMode || !sessionStorage.getItem('gfp_token')) {
+      // o exemplo é montado uma vez; depois disso as alterações feitas na tela ficam valendo
+      if (!lanc.demo || !lanc.historico.length) {
+        if (!lanc.demo) { lanc.banco = ''; Object.keys(lanc.filtros).forEach(coluna => lanc.filtros[coluna] = []); }
+        lanc.historico = dadosDemonstracao();
+      }
       lanc.demo = true;
-      lanc.itens = dadosDemonstracao();
+      lanc.itens = lanc.historico.filter(noPeriodo);
+      lanc.meses = [...new Set(lanc.historico.map(linha => linha.occurred_on.slice(0, 7)))];
+      lanc.totalNoPeriodo = lanc.itens.length;
       // na demonstração usa as sete de sempre, com os mesmos ícones e cores do cadastro
       if (!lanc.categorias.length && typeof CATEGORIAS_PADRAO_DEMO !== 'undefined') {
         lanc.categorias = CATEGORIAS_PADRAO_DEMO.map((c, i) => ({ id: `demo-cat-${i}`, ...c, usos: 0 }));
       }
     } else {
+      // filtros feitos na demonstração apontam para contas que não existem na conta de verdade
+      if (lanc.demo) { lanc.banco = ''; Object.keys(lanc.filtros).forEach(coluna => lanc.filtros[coluna] = []); }
       lanc.demo = false;
       const escopo = document.querySelector('[data-view].selected')?.dataset.view === 'private' ? 'self' : 'family';
-      const [pacote, contas, categorias] = await Promise.all([
-        request(`/transactions?scope=${escopo}&envelope=1&limit=2000`, { headers: authHeaders(), cache: 'no-store' }),
+      const base = `/transactions?scope=${escopo}&envelope=1&limit=2000`;
+      const limites = limitesDoPeriodo();
+      const normalizar = pacote => (pacote.items || []).map(linha => ({ ...linha, occurred_on: String(linha.occurred_on).slice(0, 10) }));
+      // Dois pedidos: o período que a tabela mostra e os mais recentes de qualquer
+      // data, que a importação usa para reconhecer fornecedor e categoria.
+      const [pacote, contas, categorias, doPeriodo] = await Promise.all([
+        request(base, { headers: authHeaders(), cache: 'no-store' }),
         request(`/accounts?scope=${escopo}`, { headers: authHeaders(), cache: 'no-store' }),
-        request('/categories', { headers: authHeaders(), cache: 'no-store' })
+        request('/categories', { headers: authHeaders(), cache: 'no-store' }),
+        limites ? request(`${base}&from=${limites.de}&to=${limites.ate}`, { headers: authHeaders(), cache: 'no-store' }) : null
       ]);
       lanc.categorias = categorias || [];
-      // a data vem só como AAAA-MM-DD; normalizo por segurança para o filtro por período funcionar
-      lanc.itens = (pacote.items || []).map(linha => ({ ...linha, occurred_on: String(linha.occurred_on).slice(0, 10) }));
+      lanc.historico = normalizar(pacote);
+      lanc.itens = doPeriodo ? normalizar(doPeriodo) : lanc.historico;
+      lanc.meses = (pacote.facets?.months || []).map(mes => mes.valor);
+      lanc.totalNoPeriodo = Number((doPeriodo || pacote).summary?.total ?? lanc.itens.length);
       lanc.contas = contas || [];
     }
   } catch (erro) {
@@ -135,6 +195,151 @@ async function carregarLancamentos() {
   lanc.selecao = new Set();
   lanc.carregando = false;
   desenharTela();
+}
+
+/* ---------- período, banco, conta e categoria ---------- */
+
+// Mês corrente, os doze anteriores e qualquer outro mês que tenha lançamento.
+function mesesParaEscolher() {
+  const atual = mesCorrente();
+  const meses = new Set(lanc.meses.filter(ym => /^\d{4}-\d{2}$/.test(ym)));
+  const [ano, mes] = atual.split('-').map(Number);
+  for (let atras = 1; atras <= 12; atras += 1) {
+    const data = new Date(ano, mes - 1 - atras, 1);
+    meses.add(`${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`);
+  }
+  if (lanc.periodo.modo === 'mes') meses.add(lanc.periodo.mes);
+  meses.delete(atual);
+  const lista = [...meses].sort().reverse();
+  return { atual, anteriores: lista.filter(ym => ym < atual), futuros: lista.filter(ym => ym > atual) };
+}
+
+// Bancos que aparecem nas contas; conta sem banco (dinheiro) entra como "Sem banco".
+function bancosDasContas() {
+  const bancos = new Map();
+  for (const conta of lanc.contas) {
+    if (conta.bank_id) bancos.set(conta.bank_id, conta.bank_name || 'Banco sem nome');
+  }
+  const lista = [...bancos].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  if (lista.length && lanc.contas.some(conta => !conta.bank_id)) lista.push({ id: SEM_BANCO, nome: 'Sem banco (dinheiro e outros)' });
+  return lista;
+}
+const contasDoBanco = banco => lanc.contas.filter(conta => !banco || (banco === SEM_BANCO ? !conta.bank_id : conta.bank_id === banco));
+
+/* O banco é um atalho para as contas dele: escolher o banco marca essas contas
+   no filtro da coluna Conta. Se o filtro da coluna mudar por outro caminho e
+   deixar de bater com o banco, o banco volta para "todos". */
+function conferirBanco() {
+  if (!lanc.banco) return;
+  const ids = new Set(contasDoBanco(lanc.banco).map(conta => conta.id));
+  const marcadas = lanc.filtros.conta;
+  if (!marcadas.length || !marcadas.every(id => ids.has(id))) lanc.banco = '';
+}
+
+function barraDeRecorte() {
+  if (lanc.erroCarga) return '';
+  const { atual, anteriores, futuros } = mesesParaEscolher();
+  const { modo, mes, de, ate } = lanc.periodo;
+  const valorPeriodo = modo === 'mes' ? `mes:${mes}` : modo;
+  const opcaoMes = ym => `<option value="mes:${ym}" ${valorPeriodo === `mes:${ym}` ? 'selected' : ''}>${nomeDoMes(ym)}</option>`;
+
+  conferirBanco();
+  const bancos = bancosDasContas();
+  const contas = contasDoBanco(lanc.banco);
+  const contasMarcadas = lanc.filtros.conta;
+  const contaUnica = contasMarcadas.length === 1 ? contasMarcadas[0] : '';
+  // várias contas marcadas pelo funil da coluna, sem ser "o banco inteiro"
+  const variasContas = contasMarcadas.length > 1 && !lanc.banco;
+
+  const categoriasMarcadas = lanc.filtros.categoria;
+  const categoriaUnica = categoriasMarcadas.length === 1 ? categoriasMarcadas[0] : '';
+  const nomes = [...new Set([...nomesDeCategoria(), ...lanc.itens.map(linha => linha.category).filter(Boolean)])]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  return `<div class="lanc-recorte">
+    <label>Período
+      <select id="lancPeriodo">
+        <option value="mes:${atual}" ${valorPeriodo === `mes:${atual}` ? 'selected' : ''}>Mês atual — ${nomeDoMes(atual)}</option>
+        ${futuros.length ? `<optgroup label="Meses à frente">${futuros.map(opcaoMes).join('')}</optgroup>` : ''}
+        <optgroup label="Meses anteriores">${anteriores.map(opcaoMes).join('')}</optgroup>
+        <optgroup label="Outro período">
+          <option value="intervalo" ${modo === 'intervalo' ? 'selected' : ''}>Data inicial e data final…</option>
+          <option value="tudo" ${modo === 'tudo' ? 'selected' : ''}>Todos os lançamentos</option>
+        </optgroup>
+      </select>
+    </label>
+    ${modo === 'intervalo' ? `
+      <label>Data inicial<input type="date" id="lancDe" value="${seguro(de)}"></label>
+      <label>Data final<input type="date" id="lancAte" value="${seguro(ate)}"></label>
+      <button class="aplicar" id="lancAplicarPeriodo">Aplicar</button>` : ''}
+    <span class="sep"></span>
+    ${bancos.length ? `<label>Banco
+      <select id="lancBanco">
+        <option value="">Todos os bancos</option>
+        ${bancos.map(banco => `<option value="${seguro(banco.id)}" ${lanc.banco === banco.id ? 'selected' : ''}>${seguro(banco.nome)}</option>`).join('')}
+      </select>
+    </label>` : ''}
+    <label>Conta
+      <select id="lancConta">
+        <option value="">${lanc.banco ? 'Todas as contas do banco' : 'Todas as contas'}</option>
+        ${variasContas ? `<option value="__varias__" selected>${contasMarcadas.length} contas marcadas</option>` : ''}
+        ${contas.map(conta => `<option value="${seguro(conta.id)}" ${contaUnica === conta.id && !variasContas ? 'selected' : ''}>${seguro(conta.name)}</option>`).join('')}
+      </select>
+    </label>
+    <label>Categoria
+      <select id="lancCategoria">
+        <option value="">Todas as categorias</option>
+        ${categoriasMarcadas.length > 1 ? `<option value="__varias__" selected>${categoriasMarcadas.length} categorias marcadas</option>` : ''}
+        ${nomes.map(nome => `<option value="${seguro(nome)}" ${categoriaUnica === nome ? 'selected' : ''}>${seguro(nome)}</option>`).join('')}
+        <option value="${SEM_CATEGORIA}" ${categoriaUnica === SEM_CATEGORIA ? 'selected' : ''}>(Sem categoria)</option>
+      </select>
+    </label>
+    <p class="lanc-recorte-erro" id="lancErroRecorte"></p>
+  </div>`;
+}
+
+function mudarPeriodo(valor) {
+  if (valor.startsWith('mes:')) {
+    lanc.periodo = { modo: 'mes', mes: valor.slice(4), de: '', ate: '' };
+  } else if (valor === 'intervalo') {
+    // começa pelas datas que já estavam na tela, para a pessoa só ajustar
+    const limites = limitesDoPeriodo() || { de: `${mesCorrente()}-01`, ate: hojeLocal() };
+    lanc.periodo = { ...lanc.periodo, modo: 'intervalo', de: limites.de, ate: limites.ate };
+  } else {
+    lanc.periodo = { ...lanc.periodo, modo: 'tudo' };
+  }
+  carregarLancamentos();
+}
+
+function ligarRecorte(tela) {
+  tela.querySelector('#lancPeriodo')?.addEventListener('change', evento => mudarPeriodo(evento.target.value));
+  const aplicar = () => {
+    const de = tela.querySelector('#lancDe').value, ate = tela.querySelector('#lancAte').value;
+    const erro = tela.querySelector('#lancErroRecorte');
+    if (!de || !ate) return (erro.textContent = 'Informe a data inicial e a data final.');
+    if (de > ate) return (erro.textContent = 'A data inicial precisa ser anterior à final.');
+    lanc.periodo = { ...lanc.periodo, modo: 'intervalo', de, ate };
+    carregarLancamentos();
+  };
+  tela.querySelector('#lancAplicarPeriodo')?.addEventListener('click', aplicar);
+  tela.querySelectorAll('#lancDe,#lancAte').forEach(campo => campo.addEventListener('keydown', evento => { if (evento.key === 'Enter') aplicar(); }));
+  tela.querySelector('#lancBanco')?.addEventListener('change', evento => {
+    lanc.banco = evento.target.value;
+    lanc.filtros.conta = lanc.banco ? contasDoBanco(lanc.banco).map(conta => conta.id) : [];
+    desenharTela();
+  });
+  tela.querySelector('#lancConta')?.addEventListener('change', evento => {
+    const conta = evento.target.value;
+    if (conta === '__varias__') return;
+    lanc.filtros.conta = conta ? [conta] : (lanc.banco ? contasDoBanco(lanc.banco).map(c => c.id) : []);
+    desenharTela();
+  });
+  tela.querySelector('#lancCategoria')?.addEventListener('change', evento => {
+    const categoria = evento.target.value;
+    if (categoria === '__varias__') return;
+    lanc.filtros.categoria = categoria ? [categoria] : [];
+    desenharTela();
+  });
 }
 
 /* ---------- filtro e ordenação ---------- */
@@ -205,8 +410,8 @@ function desenharTela() {
   alvo.innerHTML = `
     <div class="lanc-head">
       <small>CENTRAL FINANCEIRA</small>
-      <h2>Lançamentos</h2>
-      <p>Clique no funil de qualquer coluna para escolher os valores — como o AutoFiltro do Excel.${lanc.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
+      <h2>Lançamentos <span class="lanc-periodo-titulo">· ${seguro(rotuloDoPeriodo())}</span></h2>
+      <p>A tela abre no mês atual. Troque o período, o banco, a conta ou a categoria na barra abaixo — ou clique no funil de qualquer coluna, como no AutoFiltro do Excel.${lanc.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
     </div>
 
     <div class="lanc-cmd">
@@ -229,6 +434,7 @@ function desenharTela() {
         <button id="lancTentarDeNovo">Tentar de novo</button>
       </div>` : ''}
 
+    ${barraDeRecorte()}
     ${faixaDeContas()}
     ${faixaSemCategoria()}
 
@@ -273,10 +479,10 @@ function desenharTela() {
             <button class="remover" data-excluir="${seguro(linha.id)}" title="Excluir" ${podeEditar() ? '' : 'disabled'}>${svg('lixeira', 'ico-s')}</button>
           </span>
         </div>`).join('')
-        : `<div class="lanc-vazio"><b>${temFiltro() ? 'Nenhum lançamento com esses filtros' : 'Nenhum lançamento por aqui ainda'}</b>${temFiltro() ? 'Desmarque algum valor nas colunas ou limpe os filtros.' : 'Use Novo para incluir o primeiro, ou importe o extrato do banco.'}</div>`}
+        : `<div class="lanc-vazio"><b>${temFiltro() ? 'Nenhum lançamento com esses filtros' : lanc.periodo.modo === 'tudo' ? 'Nenhum lançamento por aqui ainda' : `Nenhum lançamento em ${seguro(rotuloDoPeriodo())}`}</b>${temFiltro() ? 'Desmarque algum valor nas colunas ou limpe os filtros.' : lanc.periodo.modo === 'tudo' ? 'Use Novo para incluir o primeiro, ou importe o extrato do banco.' : 'Escolha outro mês em Período, use Novo para incluir um lançamento ou importe o extrato do banco.'}</div>`}
 
       <div class="lanc-rodape">
-        <span>Mostrando ${linhas.length} de ${lanc.itens.length}${temFiltro() ? ' (filtrado)' : ''}</span>
+        <span>Mostrando ${linhas.length} de ${lanc.itens.length}${temFiltro() ? ' (filtrado)' : ''} · ${seguro(rotuloDoPeriodo())}${lanc.totalNoPeriodo > lanc.itens.length ? ` · o período tem ${lanc.totalNoPeriodo}; aparecem os ${lanc.itens.length} mais recentes — reduza o período para ver os demais` : ''}</span>
         <div class="totais">
           <span>Entradas <strong style="color:var(--green)">${reais(receitas)}</strong></span>
           <span>Saídas <strong style="color:var(--red)">${reais(despesas)}</strong></span>
@@ -313,7 +519,8 @@ function faixaDeContas() {
 // importações anteriores. Uma resposta resolve todos os parecidos.
 function faixaSemCategoria() {
   if (lanc.demo || lanc.erroCarga || lanc.carregando) return '';
-  const quantos = lanc.itens.filter(item => !item.category).length;
+  // conta o que está pendente em qualquer data, não só no período da tela
+  const quantos = (lanc.historico.length ? lanc.historico : lanc.itens).filter(item => !item.category).length;
   if (!quantos) return '';
   return `<div class="lanc-pendentes">
     <span>${svg('funil', 'ico-s')}${quantos === 1 ? '1 lançamento sem categoria' : `${quantos} lançamentos sem categoria`} — respondendo uma vez, todos os parecidos são classificados juntos.</span>
@@ -418,7 +625,11 @@ function abrirPainelFiltro(coluna, botao) {
     fecharFlutuantes();
     desenharTela();
   }));
-  painel.querySelector('[data-periodo]')?.addEventListener('click', () => { fecharFlutuantes(); abrirCaixaPeriodo(); });
+  painel.querySelector('[data-periodo]')?.addEventListener('click', () => {
+    fecharFlutuantes();
+    lanc.filtros.data = [];
+    mudarPeriodo('intervalo');
+  });
   painel.querySelector('[data-fechar]').addEventListener('click', fecharFlutuantes);
   painel.querySelector('[data-aplicar]').addEventListener('click', () => {
     const filhos = [...painel.querySelectorAll('#lancValores .opt[data-valor]')];
@@ -586,22 +797,25 @@ function abrirEditor(id) {
         ? ` · ${dados.category} aplicada a mais ${quantos} lançamento${quantos > 1 ? 's' : ''} de ${dados.supplier}` : '');
       if (lanc.demo) {
         let replicados = 0;
-        if (mudou) lanc.itens.forEach(item => {
+        if (mudou) lanc.historico.forEach(item => {
           if (item !== linha && item.type !== 'transfer' && String(item.supplier || '').trim().toLowerCase() === dados.supplier.toLowerCase() && item.category !== dados.category) {
             item.category = dados.category; replicados += 1;
           }
         });
         if (linha) Object.assign(linha, { occurred_on: dados.occurredOn, type: dados.type, description: dados.description, category: dados.category, account_id: dados.accountId, amount_cents: dados.amountCents, supplier: dados.supplier, account_name: contas.find(c => c.id === dados.accountId)?.name });
-        else lanc.itens.unshift({ id: `demo-${Date.now()}`, occurred_on: dados.occurredOn, type: dados.type, description: dados.description, category: dados.category, account_id: dados.accountId, amount_cents: dados.amountCents, supplier: dados.supplier, account_name: contas.find(c => c.id === dados.accountId)?.name });
+        else lanc.historico.unshift({ id: `demo-${Date.now()}`, occurred_on: dados.occurredOn, type: dados.type, description: dados.description, category: dados.category, account_id: dados.accountId, amount_cents: dados.amountCents, supplier: dados.supplier, account_name: contas.find(c => c.id === dados.accountId)?.name });
+        lanc.itens = lanc.historico.filter(noPeriodo);
         fecharCaixa();
         desenharTela();
-        return notify((linha ? '🟢 Lançamento alterado (demonstração)' : '🟢 Lançamento incluído (demonstração)') + avisoReplicacao(replicados));
+        return notify((linha ? '🟢 Lançamento alterado (demonstração)' : '🟢 Lançamento incluído (demonstração)') + avisoReplicacao(replicados)
+          + (noPeriodo({ occurred_on: dados.occurredOn }) ? '' : ` · fica em ${dataBr(dados.occurredOn)}, fora do período da tela`));
       }
       const resposta = linha
         ? await request(`/transactions/${linha.id}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(dados) })
         : await request('/transactions', { method: 'POST', headers: authHeaders(), body: JSON.stringify(dados) });
       fecharCaixa();
-      notify((linha ? '🟢 Lançamento alterado' : '🟢 Lançamento incluído') + avisoReplicacao(Number(resposta?.replicated) || 0));
+      notify((linha ? '🟢 Lançamento alterado' : '🟢 Lançamento incluído') + avisoReplicacao(Number(resposta?.replicated) || 0)
+        + (noPeriodo({ occurred_on: dados.occurredOn }) ? '' : ` · fica em ${dataBr(dados.occurredOn)}, fora do período da tela`));
       await carregarLancamentos();
       if (typeof loadFinance === 'function') loadFinance().catch(() => {});
     } catch (falha) {
@@ -612,26 +826,49 @@ function abrirEditor(id) {
 }
 
 function abrirCaixaPeriodo() {
-  const hoje = new Date();
-  const primeiro = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
+  // sugere o período que está na tela; sem período, o mês corrente
+  const sugerido = limitesDoPeriodo() || { de: `${mesCorrente()}-01`, ate: hojeLocal() };
   const fundo = abrirCaixa(`
     <div class="aviso"><i>!</i><div><h3>Excluir lançamentos por período</h3><p class="sub">Escolha as datas e confira o que será apagado antes de confirmar.</p></div></div>
     <div class="campos">
-      <label>De<input type="date" id="lancPeriodoDe" value="${primeiro}"></label>
-      <label>Até<input type="date" id="lancPeriodoAte" value="${hoje.toISOString().slice(0, 10)}"></label>
+      <label>De<input type="date" id="lancPeriodoDe" value="${sugerido.de}"></label>
+      <label>Até<input type="date" id="lancPeriodoAte" value="${sugerido.ate}"></label>
       <label class="largo">Conta<select id="lancPeriodoConta"><option value="">Todas as contas</option>${lanc.contas.map(conta => `<option value="${seguro(conta.id)}">${seguro(conta.name)}</option>`).join('')}</select></label>
     </div>
     <p class="lanc-erro" id="lancErroPeriodo"></p>
     <div class="pe"><button data-fechar="1">Cancelar</button><button class="principal" id="lancVerPeriodo">Ver o que será excluído</button></div>`);
   fundo.querySelector('[data-fechar]').addEventListener('click', fecharCaixa);
-  fundo.querySelector('#lancVerPeriodo').addEventListener('click', () => {
+  fundo.querySelector('#lancVerPeriodo').addEventListener('click', async () => {
     const de = fundo.querySelector('#lancPeriodoDe').value;
     const ate = fundo.querySelector('#lancPeriodoAte').value;
     const conta = fundo.querySelector('#lancPeriodoConta').value;
-    if (!de || !ate) return fundo.querySelector('#lancErroPeriodo').textContent = 'Informe as duas datas.';
-    if (de > ate) return fundo.querySelector('#lancErroPeriodo').textContent = 'A data inicial precisa ser anterior à final.';
-    const alvo = lanc.itens.filter(linha => linha.occurred_on >= de && linha.occurred_on <= ate && (!conta || linha.account_id === conta));
-    if (!alvo.length) return fundo.querySelector('#lancErroPeriodo').textContent = 'Nenhum lançamento nesse período.';
+    const erro = fundo.querySelector('#lancErroPeriodo');
+    if (!de || !ate) return erro.textContent = 'Informe as duas datas.';
+    if (de > ate) return erro.textContent = 'A data inicial precisa ser anterior à final.';
+    /* A exclusão é feita pelo servidor, por data. A conferência precisa mostrar
+       exatamente o que ele vai apagar — e a tela pode estar em outro período. */
+    let alvo;
+    if (lanc.demo) {
+      alvo = lanc.historico.filter(linha => linha.occurred_on >= de && linha.occurred_on <= ate && (!conta || linha.account_id === conta));
+    } else {
+      const botao = fundo.querySelector('#lancVerPeriodo');
+      botao.disabled = true;
+      try {
+        const escopo = document.querySelector('[data-view].selected')?.dataset.view === 'private' ? 'self' : 'family';
+        const pacote = await request(`/transactions?scope=${escopo}&envelope=1&limit=2000&from=${de}&to=${ate}${conta ? `&accounts=${conta}` : ''}`,
+          { headers: authHeaders(), cache: 'no-store' });
+        if (Number(pacote.summary?.total || 0) > (pacote.items || []).length) {
+          botao.disabled = false;
+          return erro.textContent = `Esse período tem ${pacote.summary.total} lançamentos. Para conferir antes de apagar, escolha um período menor (até 2.000 por vez).`;
+        }
+        alvo = (pacote.items || []).map(linha => ({ ...linha, occurred_on: String(linha.occurred_on).slice(0, 10) }));
+      } catch (falha) {
+        botao.disabled = false;
+        return erro.textContent = mensagemAmigavel(falha.message);
+      }
+      botao.disabled = false;
+    }
+    if (!alvo.length) return erro.textContent = 'Nenhum lançamento nesse período.';
     abrirConfirmacaoExclusao(alvo, `o período de ${dataBr(de)} a ${dataBr(ate)}`, { from: de, to: ate, accountId: conta || undefined });
   });
 }
@@ -668,6 +905,7 @@ function abrirConfirmacaoExclusao(alvo, origem, porPeriodo) {
       if (lanc.demo) {
         const apagar = new Set(alvo.map(linha => linha.id));
         lanc.itens = lanc.itens.filter(linha => !apagar.has(linha.id));
+        lanc.historico = lanc.historico.filter(linha => !apagar.has(linha.id));
       } else if (porPeriodo) {
         await request('/transactions/bulk-delete', { method: 'POST', headers: authHeaders(), body: JSON.stringify(porPeriodo) });
       } else if (alvo.length === 1) {
@@ -697,7 +935,8 @@ function exportarCsv() {
   const csv = [cabecalho, ...corpo].map(colunas => colunas.map(valor => `"${String(valor).replace(/"/g, '""')}"`).join(';')).join('\r\n');
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-  link.download = `lancamentos-gfp-${new Date().toISOString().slice(0, 10)}.csv`;
+  const limites = limitesDoPeriodo();
+  link.download = `lancamentos-gfp-${limites ? `${limites.de}_a_${limites.ate}` : `ate-${hojeLocal()}`}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
   notify(`🟢 ${linhas.length} ${linhas.length === 1 ? 'lançamento exportado' : 'lançamentos exportados'}`);
@@ -707,6 +946,7 @@ function exportarCsv() {
 
 function ligarEventos() {
   const tela = document.querySelector('#telaLancamentos');
+  ligarRecorte(tela);
   tela.querySelectorAll('.lanc-th[data-coluna]').forEach(botao => botao.addEventListener('click', evento => {
     evento.stopPropagation();
     const painel = document.querySelector('#lancPainelFiltro');
@@ -789,6 +1029,9 @@ function abrirTelaLancamentos() {
   document.querySelectorAll('.sidebar nav button').forEach(botao =>
     botao.classList.toggle('active', botao.dataset.tela === 'lancamentos'));
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  // a tela abre sempre no mês atual; os outros períodos se escolhem na barra
+  lanc.periodo = { modo: 'mes', mes: mesCorrente(), de: '', ate: '' };
+  lanc.filtros.data = [];
   carregarLancamentos();
 }
 function fecharTelaLancamentos() {

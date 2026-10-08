@@ -20,6 +20,15 @@ const taxaAnual = taxa => `${((Math.pow(1 + Number(taxa), 12) - 1) * 100).toLoca
 const podeMexer = () => !['dependent', 'viewer'].includes(window.currentProfileRole);
 const erroAmigavel = falha => (typeof mensagemAmigavel === 'function' ? mensagemAmigavel(falha.message) : falha.message);
 
+/* O que a parcela paga custou de verdade — a mesma conta de custoDaParcela
+   em api/src/emprestimos.js: desconto de antecipação sai dos juros e vira
+   economia; valor pago a mais (multa) entra como juro. */
+function custoDaParcelaPaga(p) {
+  if (!p.paid_on) return { pago_cents: 0, juros_pagos_cents: 0, economia_cents: 0 };
+  const valor = Number(p.amount_cents), pago = Number(p.paid_cents ?? p.amount_cents), juros = Number(p.interest_cents || 0);
+  return { pago_cents: pago, juros_pagos_cents: Math.min(Math.max(juros + (pago - valor), 0), pago), economia_cents: Math.max(valor - pago, 0) };
+}
+
 /* O mesmo resumo que a API calcula (api/src/emprestimos.js → resumir). */
 function resumirLocal(contrato) {
   const parcelas = contrato.parcelas || [];
@@ -27,16 +36,24 @@ function resumirLocal(contrato) {
   const abertas = parcelas.filter(p => !p.paid_on).sort((a, b) => a.due_on.localeCompare(b.due_on));
   const soma = (lista, f) => lista.reduce((s, p) => s + Number(f(p) || 0), 0);
   const total = soma(parcelas, p => p.amount_cents);
-  const previsto = soma(pagas, p => p.amount_cents), pago = soma(pagas, p => p.paid_cents ?? p.amount_cents);
   return {
     principal_cents: contrato.principal_cents, total_contratado_cents: total,
-    juros_total_cents: Math.max(total - contrato.principal_cents, 0), juros_pagos_cents: soma(pagas, p => p.interest_cents),
-    pago_cents: pago, economia_cents: Math.max(previsto - pago, 0),
-    parcelas_pagas: pagas.length, parcelas_total: parcelas.length, saldo_devedor_cents: soma(abertas, p => p.amount_cents),
+    juros_total_cents: Math.max(total - contrato.principal_cents, 0),
+    juros_pagos_cents: soma(pagas, p => custoDaParcelaPaga(p).juros_pagos_cents),
+    juros_a_pagar_cents: soma(abertas, p => p.interest_cents),
+    pago_cents: soma(pagas, p => custoDaParcelaPaga(p).pago_cents),
+    economia_cents: soma(pagas, p => custoDaParcelaPaga(p).economia_cents),
+    parcelas_pagas: pagas.length, parcelas_a_pagar: abertas.length, parcelas_total: parcelas.length,
+    saldo_devedor_cents: soma(abertas, p => p.amount_cents),
     parcelas_atrasadas: abertas.filter(p => p.due_on < hojeIso()).length,
     proxima_parcela: abertas[0] ? { number: abertas[0].number, due_on: abertas[0].due_on, amount_cents: abertas[0].amount_cents } : null
   };
 }
+
+// Contratos gravados antes destes campos existirem na resposta da API.
+const parcelasAPagar = r => r.parcelas_a_pagar ?? (r.parcelas_total - r.parcelas_pagas);
+const jurosAPagar = r => r.juros_a_pagar_cents ?? Math.max(r.juros_total_cents - r.juros_pagos_cents, 0);
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
 /* ---------- dados ---------- */
 
@@ -56,13 +73,15 @@ function emprestimosDemonstracao() {
   const montar = (id, dados, pagas) => {
     const gerado = GFPEmprestimos.gerarParcelas({ principalCents: dados.principal_cents, parcelas: dados.installments_count, taxaMensal: dados.monthly_rate, primeiraEm: dados.first_due_on });
     const parcelas = cronogramaDaApi(gerado).map((p, i) => (i < pagas
-      ? { ...p, paid_on: p.due_on, paid_cents: p.amount_cents, payment_mode: i === pagas - 1 ? 'linked' : 'created' } : p));
+      ? { ...p, paid_on: p.due_on, paid_cents: i === pagas - 1 && dados.desconto_cents ? p.amount_cents - dados.desconto_cents : p.amount_cents,
+          payment_mode: i === pagas - 1 ? 'linked' : 'created' } : p));
+    delete dados.desconto_cents;
     const contrato = { id, status: 'active', category: 'Empréstimos', installment_cents: gerado.parcelaCents, conta_nome: 'Conta corrente', account_id: 'demo-conta', notes: null, ...dados, parcelas };
     return { ...contrato, resumo: resumirLocal(contrato) };
   };
   emp.contas = [{ id: 'demo-conta', name: 'Conta corrente' }];
   emp.contratos = [
-    montar('demo-l1', { name: 'Consignado Caixa', lender: 'Caixa', kind: 'consignado', principal_cents: 2500000, installments_count: 48, monthly_rate: 0.0172, first_due_on: mesesAtras(14) }, 14),
+    montar('demo-l1', { name: 'Consignado Caixa', lender: 'Caixa', kind: 'consignado', principal_cents: 2500000, installments_count: 48, monthly_rate: 0.0172, first_due_on: mesesAtras(14), desconto_cents: 9800 }, 14),
     montar('demo-l2', { name: 'Pessoal Nubank', lender: 'Nubank', kind: 'pessoal', principal_cents: 600000, installments_count: 12, monthly_rate: 0.0349, first_due_on: mesesAtras(3) }, 3)
   ];
 }
@@ -128,25 +147,29 @@ function desenharEmprestimos() {
 
 function desenharLista() {
   const ativos = emp.contratos.filter(c => c.status === 'active');
-  const soma = f => ativos.reduce((s, c) => s + Number(f(c) || 0), 0);
-  const devedor = soma(c => c.resumo.saldo_devedor_cents);
-  const jurosAPagar = soma(c => c.resumo.juros_total_cents - c.resumo.juros_pagos_cents);
-  const economia = emp.contratos.reduce((s, c) => s + c.resumo.economia_cents, 0);
+  // O que já aconteceu soma todos os contratos, inclusive os quitados; o que
+  // ainda vem pela frente, só os ativos.
+  const validos = emp.contratos.filter(c => c.status !== 'cancelled');
+  const soma = (lista, f) => lista.reduce((s, c) => s + Number(f(c) || 0), 0);
+  const devedor = soma(ativos, c => c.resumo.saldo_devedor_cents);
   const limite = new Date(Date.now() + 30 * 864e5).toLocaleDateString('sv-SE');
   const proximas = ativos.filter(c => c.resumo.proxima_parcela && c.resumo.proxima_parcela.due_on <= limite);
+  const pagas = soma(validos, c => c.resumo.parcelas_pagas);
+  const aPagar = soma(ativos, c => parcelasAPagar(c.resumo));
 
   return `
     <div class="lanc-head">
       <small>SUAS DÍVIDAS</small>
       <h2>Empréstimos e financiamentos</h2>
-      <p>Cada contrato com o cronograma completo: quanto falta, quanto de juros ainda vem pela frente e quanto você economizou antecipando.${emp.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
+      <p>Cada contrato com o cronograma completo: quantas parcelas já foram e quantas faltam, quanto de juros você já pagou e quanto economizou antecipando.${emp.demo ? ' <b>Dados de demonstração.</b>' : ''}</p>
     </div>
     ${emp.erro ? `<div class="lanc-falha"><div>${svg('alerta')}<span><b>Não consegui carregar</b><small>${seguro(emp.erro)}</small></span></div><button id="empTentarDeNovo">Tentar de novo</button></div>` : ''}
-    <div class="met-resumo">
-      <div><span>Saldo devedor</span><strong>${reais(devedor)}</strong></div>
-      <div><span>Juros ainda a pagar</span><strong>${reais(jurosAPagar)}</strong></div>
-      <div><span>Parcelas nos próximos 30 dias</span><strong>${reais(proximas.reduce((s, c) => s + c.resumo.proxima_parcela.amount_cents, 0))}</strong></div>
-      <div><span>Economia com antecipação</span><strong>${reais(economia)}</strong></div>
+    <div class="met-resumo cinco">
+      <div><span>Saldo devedor</span><strong>${reais(devedor)}</strong><small>${plural(ativos.length, 'contrato ativo', 'contratos ativos')}</small></div>
+      <div><span>Parcelas já pagas</span><strong>${pagas}</strong><small>${reais(soma(validos, c => c.resumo.pago_cents))} pagos até hoje</small></div>
+      <div><span>Parcelas que faltam pagar</span><strong>${aPagar}</strong><small>${reais(proximas.reduce((s, c) => s + c.resumo.proxima_parcela.amount_cents, 0))} vencem nos próximos 30 dias</small></div>
+      <div><span>Juros já pagos</span><strong>${reais(soma(validos, c => c.resumo.juros_pagos_cents))}</strong><small>${reais(soma(ativos, c => jurosAPagar(c.resumo)))} de juros ainda a pagar</small></div>
+      <div><span>Economia pagando adiantado</span><strong>${reais(soma(validos, c => c.resumo.economia_cents))}</strong><small>desconto das antecipações</small></div>
     </div>
     <section class="met-bloco">
       <div class="met-cabeca">
@@ -154,6 +177,39 @@ function desenharLista() {
         ${podeMexer() ? `<button class="met-novo" id="empNovo">${svg('mais', 'ico-s')}Novo empréstimo</button>` : ''}
       </div>
       ${emp.carregando ? '<div class="lanc-vazio">Carregando…</div>' : desenharCartoes()}
+    </section>
+    ${emp.carregando || !emp.contratos.length ? '' : desenharListagem()}`;
+}
+
+/* Um contrato por linha: a parcela da vez, o que já foi pago, os juros e a
+   economia. É a mesma informação dos cartões, lado a lado para comparar. */
+function desenharListagem() {
+  const validos = emp.contratos.filter(c => c.status !== 'cancelled');
+  const soma = f => validos.reduce((s, c) => s + Number(f(c) || 0), 0);
+  return `
+    <section class="met-bloco">
+      <div class="met-cabeca"><div><h3>📋 Listagem dos contratos</h3>
+        <p>O vencimento e o valor são os da próxima parcela em aberto; pago, juros e economizado somam as parcelas já pagas.</p></div></div>
+      <div class="emp-tabela-rolo"><table class="emp-tabela emp-listagem">
+        <thead><tr><th>Contrato</th><th>Data de vencimento</th><th>Parcela / total</th><th class="num">Valor da parcela</th>
+          <th class="num">Valor pago</th><th class="num">Valor de juros</th><th class="num">Valor economizado</th></tr></thead>
+        <tbody>${emp.contratos.map(c => {
+          const r = c.resumo, prox = r.proxima_parcela, cancelado = c.status === 'cancelled';
+          const situacao = c.status === 'settled' ? 'Quitado' : cancelado ? 'Cancelado' : '';
+          return `<tr class="${cancelado ? 'cancelado' : ''}" data-abrir-contrato="${seguro(c.id)}" tabindex="0">
+            <td><b>${seguro(c.name)}</b><small>${seguro(TIPOS_EMPRESTIMO[c.kind] || c.kind)}${c.lender ? ` · ${seguro(c.lender)}` : ''}</small></td>
+            <td>${prox && !cancelado ? `${dataBr(prox.due_on)}${prox.due_on < hojeIso() ? '<small class="ruim">em atraso</small>' : ''}` : `<span class="emp-selo ${seguro(c.status)}">${situacao || '—'}</span>`}</td>
+            <td>${prox && !cancelado ? `${prox.number}/${r.parcelas_total}` : `${r.parcelas_pagas}/${r.parcelas_total}`}<small>${plural(r.parcelas_pagas, 'paga', 'pagas')} · ${cancelado ? 'cancelado' : plural(parcelasAPagar(r), 'falta', 'faltam')}</small></td>
+            <td class="num">${prox && !cancelado ? reais(prox.amount_cents) : '—'}</td>
+            <td class="num">${reais(r.pago_cents)}</td>
+            <td class="num">${reais(r.juros_pagos_cents)}</td>
+            <td class="num ${r.economia_cents ? 'bom' : ''}">${reais(r.economia_cents)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+        ${validos.length > 1 ? `<tfoot><tr><td colspan="4">Total${validos.length < emp.contratos.length ? ' (sem os cancelados)' : ''}</td>
+          <td class="num">${reais(soma(c => c.resumo.pago_cents))}</td><td class="num">${reais(soma(c => c.resumo.juros_pagos_cents))}</td>
+          <td class="num">${reais(soma(c => c.resumo.economia_cents))}</td></tr></tfoot>` : ''}
+      </table></div>
     </section>`;
 }
 
@@ -175,6 +231,8 @@ function desenharCartoes() {
         <div class="emp-numeros">
           <div><span>Saldo devedor</span><strong>${reais(r.saldo_devedor_cents)}</strong></div>
           <div><span>Próxima parcela</span><strong>${r.proxima_parcela ? `${reais(r.proxima_parcela.amount_cents)} · ${diaMes(r.proxima_parcela.due_on)}` : '—'}</strong></div>
+          <div><span>Parcelas pagas</span><strong>${r.parcelas_pagas} de ${r.parcelas_total}</strong></div>
+          <div><span>Faltam pagar</span><strong>${encerrado ? '—' : parcelasAPagar(r)}</strong></div>
         </div>
         ${atrasadas ? `<p class="emp-alerta">🔴 ${atrasadas} parcela${atrasadas > 1 ? 's' : ''} em atraso</p>` : ''}
       </article>`;
@@ -196,27 +254,33 @@ function desenharDetalhe(c) {
       </div>` : ''}
     </div>
     <div class="met-resumo">
-      <div><span>Saldo devedor</span><strong>${reais(r.saldo_devedor_cents)}</strong></div>
-      <div><span>Juros do contrato</span><strong>${reais(r.juros_total_cents)}</strong><small>${reais(r.juros_pagos_cents)} já pagos</small></div>
-      <div><span>Total contratado</span><strong>${reais(r.total_contratado_cents)}</strong></div>
-      <div><span>Economia antecipando</span><strong>${reais(r.economia_cents)}</strong></div>
+      <div><span>Parcelas já pagas</span><strong>${r.parcelas_pagas} de ${r.parcelas_total}</strong><small>${reais(r.pago_cents)} pagos até hoje</small></div>
+      <div><span>Parcelas que faltam pagar</span><strong>${parcelasAPagar(r)}</strong><small>saldo devedor de ${reais(r.saldo_devedor_cents)}</small></div>
+      <div><span>Juros já pagos</span><strong>${reais(r.juros_pagos_cents)}</strong><small>${reais(jurosAPagar(r))} ainda a pagar · ${reais(r.juros_total_cents)} no contrato</small></div>
+      <div><span>Economia pagando adiantado</span><strong>${reais(r.economia_cents)}</strong><small>total contratado de ${reais(r.total_contratado_cents)}</small></div>
     </div>
     <section class="met-bloco">
-      <div class="met-cabeca"><div><h3>📅 Parcelas</h3><p>${r.parcelas_pagas} de ${r.parcelas_total} pagas. Para antecipar, dê baixa informando o valor com desconto que o banco cobrou.</p></div></div>
+      <div class="met-cabeca"><div><h3>📅 Parcelas</h3><p>${r.parcelas_pagas} de ${r.parcelas_total} pagas, ${plural(parcelasAPagar(r), 'falta', 'faltam')}. Para antecipar, dê baixa informando o valor com desconto que o banco cobrou.</p></div></div>
       <div class="emp-tabela-rolo"><table class="emp-tabela">
-        <thead><tr><th>Nº</th><th>Vencimento</th><th class="num">Parcela</th><th class="num">Juros</th><th class="num">Amortização</th><th class="num">Saldo depois</th><th>Situação</th><th></th></tr></thead>
+        <thead><tr><th>Parcela</th><th>Vencimento</th><th class="num">Valor da parcela</th><th class="num">Valor pago</th><th class="num">Juros</th><th class="num">Economizado</th><th class="num">Amortização</th><th class="num">Saldo depois</th><th>Situação</th><th></th></tr></thead>
         <tbody>${(c.parcelas || []).map(p => {
           const s = situacaoDaParcela(p);
+          const custo = custoDaParcelaPaga(p);
           return `<tr class="${s.classe}">
-            <td>${p.number}</td><td>${dataBr(p.due_on)}</td>
-            <td class="num">${reais(p.amount_cents)}${p.paid_on && p.paid_cents !== p.amount_cents ? `<small>pago ${reais(p.paid_cents)}</small>` : ''}</td>
-            <td class="num">${reais(p.interest_cents)}</td><td class="num">${reais(p.amortization_cents)}</td><td class="num">${reais(p.balance_after_cents)}</td>
+            <td>${p.number}/${r.parcelas_total}</td><td>${dataBr(p.due_on)}</td>
+            <td class="num">${reais(p.amount_cents)}</td>
+            <td class="num">${p.paid_on ? reais(custo.pago_cents) : '—'}</td>
+            <td class="num">${reais(p.paid_on ? custo.juros_pagos_cents : p.interest_cents)}${p.paid_on && custo.juros_pagos_cents !== Number(p.interest_cents) ? `<small>previsto ${reais(p.interest_cents)}</small>` : ''}</td>
+            <td class="num ${custo.economia_cents ? 'bom' : ''}">${p.paid_on ? reais(custo.economia_cents) : '—'}</td>
+            <td class="num">${reais(p.amortization_cents)}</td><td class="num">${reais(p.balance_after_cents)}</td>
             <td><span class="emp-situacao ${s.classe}">${s.texto}</span>${s.detalhe ? `<small>${s.detalhe}</small>` : ''}</td>
             <td><span class="lanc-acoes">${!podeMexer() || c.status === 'cancelled' ? '' : p.paid_on
               ? `<button data-desfazer="${p.number}" title="Desfazer a baixa">Desfazer</button>`
               : `<button class="emp-pagar" data-pagar="${p.number}">Pagar</button><button data-corrigir="${p.number}" title="Corrigir valor ou data">${svg('lapis', 'ico-s')}</button>`}</span></td>
           </tr>`;
         }).join('')}</tbody>
+        <tfoot><tr><td colspan="2">Total</td><td class="num">${reais(r.total_contratado_cents)}</td><td class="num">${reais(r.pago_cents)}</td>
+          <td class="num">${reais(r.juros_pagos_cents)}<small>pagos</small></td><td class="num">${reais(r.economia_cents)}</td><td colspan="4"></td></tr></tfoot>
       </table></div>
     </section>`;
 }

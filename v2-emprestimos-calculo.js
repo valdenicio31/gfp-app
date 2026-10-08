@@ -88,11 +88,31 @@ function gerarParcelas({ principalCents, parcelas, taxaMensal, parcelaCents, pri
 
 /* ---------- o que o contrato custou ---------- */
 
+/** O que uma parcela paga custou de verdade.
+ *
+ *  Antecipou e o banco deu desconto: o desconto é juro que deixou de ser
+ *  cobrado — sai dos juros pagos e entra na economia. Pagou a mais (atraso
+ *  com multa): o excesso entra como juro pago. Parcela em aberto devolve zeros.
+ */
+function custoDaParcela(parcela) {
+  if (!parcela || !parcela.paga) return { pago_cents: 0, juros_pagos_cents: 0, economia_cents: 0 };
+  const valor = CENTAVOS(parcela.valor_cents);
+  const pago = CENTAVOS(parcela.pago_cents ?? parcela.valor_cents);
+  const juros = CENTAVOS(parcela.juros_cents);
+  return {
+    pago_cents: pago,
+    juros_pagos_cents: Math.min(Math.max(juros + (pago - valor), 0), pago),
+    economia_cents: Math.max(valor - pago, 0)
+  };
+}
+
 /** Resumo de um contrato a partir das suas parcelas.
  *
  *  juros_total_cents      o que o contrato cobra de juros do começo ao fim
- *  juros_pagos_cents      juros já efetivamente pagos
+ *  juros_pagos_cents      juros já efetivamente pagos (descontado o que a antecipação poupou)
+ *  juros_a_pagar_cents    juros das parcelas que ainda estão em aberto
  *  economia_cents         o que deixou de ser pago ao antecipar parcelas
+ *  parcelas_pagas / parcelas_a_pagar   quantas já foram e quantas faltam
  *  saldo_devedor_cents    quanto falta amortizar
  */
 function resumoDoContrato(principalCents, listaParcelas) {
@@ -100,27 +120,26 @@ function resumoDoContrato(principalCents, listaParcelas) {
   const parcelas = Array.isArray(listaParcelas) ? listaParcelas : [];
   const total = parcelas.reduce((soma, p) => soma + CENTAVOS(p.valor_cents), 0);
   const pagas = parcelas.filter(p => p.paga);
-
-  // Quem antecipa paga menos do que a parcela pedia, porque os juros do tempo
-  // que não vai correr saem da conta. A diferença é a economia.
-  const previstoDasPagas = pagas.reduce((soma, p) => soma + CENTAVOS(p.valor_cents), 0);
-  const pagoDeFato = pagas.reduce((soma, p) => soma + CENTAVOS(p.pago_cents ?? p.valor_cents), 0);
+  const abertas = parcelas.filter(p => !p.paga);
+  const custo = campo => pagas.reduce((soma, p) => soma + custoDaParcela(p)[campo], 0);
 
   return {
     principal_cents: pv,
     total_contratado_cents: total,
     juros_total_cents: Math.max(total - pv, 0),
-    juros_pagos_cents: Math.max(pagas.reduce((soma, p) => soma + CENTAVOS(p.juros_cents), 0), 0),
-    pago_cents: pagoDeFato,
-    economia_cents: Math.max(previstoDasPagas - pagoDeFato, 0),
+    juros_pagos_cents: custo('juros_pagos_cents'),
+    juros_a_pagar_cents: abertas.reduce((soma, p) => soma + CENTAVOS(p.juros_cents), 0),
+    pago_cents: custo('pago_cents'),
+    economia_cents: custo('economia_cents'),
     parcelas_pagas: pagas.length,
+    parcelas_a_pagar: abertas.length,
     parcelas_total: parcelas.length,
-    saldo_devedor_cents: parcelas.filter(p => !p.paga).reduce((soma, p) => soma + CENTAVOS(p.valor_cents), 0)
+    saldo_devedor_cents: abertas.reduce((soma, p) => soma + CENTAVOS(p.valor_cents), 0)
   };
 }
 
 const GFPEmprestimos = {
-  parcelaPrice, taxaPelaParcela, mesesDepois, gerarParcelas, resumoDoContrato
+  parcelaPrice, taxaPelaParcela, mesesDepois, gerarParcelas, custoDaParcela, resumoDoContrato
 };
 if (typeof window !== 'undefined') window.GFPEmprestimos = GFPEmprestimos;
 if (typeof module !== 'undefined' && module.exports) module.exports = GFPEmprestimos;

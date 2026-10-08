@@ -13,6 +13,7 @@ import passwordResetRouter from './password-reset.js';
 import { readFileSync } from 'node:fs';
 import { registrarEmprestimos } from './emprestimos.js';
 import { deveReplicar, replicarCategoriaDoFornecedor } from './categoria-fornecedor.js';
+import { recortePedido, sqlDoRecorte, parametrosDoRecorte, contaNoRecorte, painelDoAno } from './painel.js';
 
 // Versão publicada: a mesma do versao.js do site (o teste confere).
 const VERSAO = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -1601,6 +1602,10 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   const periodo = mesPedido(req);
   if (!periodo) return res.status(400).json({ error: 'Mês inválido' });
   const { ano, mes } = periodo;
+  /* A Central pode vir consolidada, de um banco só ou de uma conta só. */
+  const recorte = recortePedido(req.query);
+  if (recorte.erro) return res.status(400).json({ error: recorte.erro });
+  const doRecorte = parametrosDoRecorte(recorte);
   const familia = req.auth.familyId, quem = req.auth.sub, ehAdmin = req.auth.role === 'admin';
   const primeiro = montarData(ano, mes, 1);
   const ultimo = montarData(ano, mes, 31);
@@ -1621,30 +1626,30 @@ app.get('/dashboard', requireAuth, async (req, res) => {
   const fimSerie = montarData(anoSerie, 12, 31);
   const visivel = '(a.owner_user_id=$2 or ($3::boolean=true and a.is_private=false))';
 
-  const [contas, doMes, doMesAnterior, serieMeses, serieAnos, porCategoria, porFornecedor,
+  const [contasTodas, doMes, doMesAnterior, serieMeses, serieAnos, porCategoria, porFornecedor,
     regras, baixas, orcamento, metas, reservas, cartoes] = await Promise.all([
-    query(`select a.id, a.name, a.type, a.balance_cents, b.name banco
+    query(`select a.id, a.name, a.type, a.balance_cents, a.bank_id, b.name banco
       from accounts a left join banks b on b.id=a.bank_id
       where a.family_id=$1 and ${visivel} order by a.name`, [familia, quem, ehAdmin]),
     query(`select t.type, sum(t.amount_cents)::bigint total, count(*)::int quantos
       from transactions t join accounts a on a.id=t.account_id
-      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5 group by t.type`,
-      [familia, quem, ehAdmin, primeiro, ultimo]),
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5${sqlDoRecorte(6)} group by t.type`,
+      [familia, quem, ehAdmin, primeiro, ultimo, ...doRecorte]),
     query(`select t.type, sum(t.amount_cents)::bigint total
       from transactions t join accounts a on a.id=t.account_id
-      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5 group by t.type`,
-      [familia, quem, ehAdmin, montarData(anteriorAno, anteriorMes, 1), montarData(anteriorAno, anteriorMes, 31)]),
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5${sqlDoRecorte(6)} group by t.type`,
+      [familia, quem, ehAdmin, montarData(anteriorAno, anteriorMes, 1), montarData(anteriorAno, anteriorMes, 31), ...doRecorte]),
     query(`select to_char(t.occurred_on,'YYYY-MM') ym,
         coalesce(sum(case when t.type='income' then t.amount_cents end),0)::bigint receitas_cents,
         coalesce(sum(case when t.type='expense' then t.amount_cents end),0)::bigint despesas_cents
       from transactions t join accounts a on a.id=t.account_id
-      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5
-      group by 1 order by 1`, [familia, quem, ehAdmin, inicioSerie, fimSerie]),
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5${sqlDoRecorte(6)}
+      group by 1 order by 1`, [familia, quem, ehAdmin, inicioSerie, fimSerie, ...doRecorte]),
     query(`select extract(year from t.occurred_on)::int ano,
         coalesce(sum(case when t.type='income' then t.amount_cents end),0)::bigint receitas_cents,
         coalesce(sum(case when t.type='expense' then t.amount_cents end),0)::bigint despesas_cents
       from transactions t join accounts a on a.id=t.account_id
-      where t.family_id=$1 and ${visivel} group by 1 order by 1 desc limit 5`, [familia, quem, ehAdmin]),
+      where t.family_id=$1 and ${visivel}${sqlDoRecorte(4)} group by 1 order by 1 desc limit 5`, [familia, quem, ehAdmin, ...doRecorte]),
     /* Sem categoria não é uma categoria: é a ausência de uma. No relatório ela
        vira "Outros" e soma com o que já está lá, senão a mesma coisa aparece
        partida em duas fatias e nenhuma das duas diz a verdade. O nullif pega
@@ -1652,13 +1657,13 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     query(`select coalesce(nullif(trim(t.category),''),'Outros') category, t.type,
         sum(t.amount_cents)::bigint total_cents, count(*)::int quantos
       from transactions t join accounts a on a.id=t.account_id
-      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5
-      group by 1,2 order by 3 desc`, [familia, quem, ehAdmin, primeiro, ultimo]),
+      where t.family_id=$1 and ${visivel} and t.occurred_on between $4 and $5${sqlDoRecorte(6)}
+      group by 1,2 order by 3 desc`, [familia, quem, ehAdmin, primeiro, ultimo, ...doRecorte]),
     query(`select t.supplier, sum(t.amount_cents)::bigint total_cents, count(*)::int quantos
       from transactions t join accounts a on a.id=t.account_id
       where t.family_id=$1 and ${visivel} and t.type='expense' and t.supplier is not null
-        and t.occurred_on between $4 and $5
-      group by 1 order by 2 desc limit 12`, [familia, quem, ehAdmin, primeiro, ultimo]),
+        and t.occurred_on between $4 and $5${sqlDoRecorte(6)}
+      group by 1 order by 2 desc limit 12`, [familia, quem, ehAdmin, primeiro, ultimo, ...doRecorte]),
     query(`select * , to_char(first_due_on,'YYYY-MM-DD') first_due_on, to_char(ends_on,'YYYY-MM-DD') ends_on
       from scheduled_bills where family_id=$1 and is_active=true`, [familia]),
     query(`select bill_id, to_char(due_on,'YYYY-MM-DD') due_on from scheduled_bill_payments
@@ -1679,6 +1684,8 @@ app.get('/dashboard', requireAuth, async (req, res) => {
       [familia, ehAdmin, quem])
   ]);
 
+  /* A lista inteira vai para a tela montar o filtro; os números usam só o recorte. */
+  const contas = { rows: contasTodas.rows.filter(conta => contaNoRecorte(conta, recorte)) };
   const somaDe = (linhas, tipo) => Number(linhas.find(l => l.type === tipo)?.total || 0);
   const receitas = somaDe(doMes.rows, 'income'), despesas = somaDe(doMes.rows, 'expense');
   const receitasAntes = somaDe(doMesAnterior.rows, 'income'), despesasAntes = somaDe(doMesAnterior.rows, 'expense');
@@ -1744,7 +1751,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     if (uso < 80) alertas.push({ nivel: 'atencao', titulo: `A meta ${meta.title} vence em breve`, detalhe: `${uso}% juntado até agora`, onde: 'metas' });
   }
   if (despesas > receitas && receitas > 0) {
-    alertas.push({ nivel: 'atencao', titulo: 'As saídas passaram as entradas neste mês', detalhe: `Diferença de ${emReais(despesas - receitas)}`, onde: 'lancamentos' });
+    alertas.push({ nivel: 'atencao', titulo: 'As despesas passaram as receitas neste mês', detalhe: `Diferença de ${emReais(despesas - receitas)}`, onde: 'lancamentos' });
   }
   if (!reserva) alertas.push({ nivel: 'info', titulo: 'Você ainda não tem reserva de emergência', detalhe: 'A recomendação comum é de três a seis meses de despesa', onde: 'metas' });
   if (!alertas.length) alertas.push({ nivel: 'bom', titulo: 'Nada pedindo atenção agora', detalhe: 'Contas em dia, orçamento respeitado e saldos positivos' });
@@ -1756,8 +1763,8 @@ app.get('/dashboard', requireAuth, async (req, res) => {
     `select coalesce(sum(t.amount_cents),0)::bigint total_cents, count(*)::int quantas
      from transactions t join accounts a on a.id=t.account_id
      where t.family_id=$1 and t.transfer_direction='out'
-       and t.occurred_on between $4 and $5 and ${visivel}`,
-    [familia, quem, ehAdmin, primeiro, ultimo]);
+       and t.occurred_on between $4 and $5 and ${visivel}${sqlDoRecorte(6)}`,
+    [familia, quem, ehAdmin, primeiro, ultimo, ...doRecorte]);
   const transferenciasPorPar = await query(
     `select origem.name origem_nome, destino.name destino_nome,
             sum(t.amount_cents)::bigint total_cents, count(*)::int quantas
@@ -1766,13 +1773,18 @@ app.get('/dashboard', requireAuth, async (req, res) => {
        left join accounts destino on destino.id=t.transfer_account_id
      where t.family_id=$1 and t.transfer_direction='out'
        and t.occurred_on between $4 and $5
-       and (origem.owner_user_id=$2 or ($3::boolean=true and origem.is_private=false))
+       and (origem.owner_user_id=$2 or ($3::boolean=true and origem.is_private=false))${sqlDoRecorte(6, 'origem')}
      group by 1,2 order by 3 desc limit 8`,
-    [familia, quem, ehAdmin, primeiro, ultimo]);
+    [familia, quem, ehAdmin, primeiro, ultimo, ...doRecorte]);
+  /* Receitas e despesas por tipo e por mês no ano corrente, e os últimos cinco anos. */
+  const anoAtual = await painelDoAno({ query, familia, quem, ehAdmin, recorte });
 
   res.json({
     hoje, year: ano, month: mes,
     contas: contas.rows, saldo_total_cents: saldoTotal,
+    contas_todas: contasTodas.rows.map(c => ({ id: c.id, name: c.name, bank_id: c.bank_id, banco: c.banco })),
+    filtro: { account_id: recorte.accountId, bank_id: recorte.semBanco ? 'none' : recorte.bankId },
+    ano_atual: anoAtual,
     transferencias: {
       total_cents: Number(transferencias.rows[0]?.total_cents || 0),
       quantas: Number(transferencias.rows[0]?.quantas || 0),

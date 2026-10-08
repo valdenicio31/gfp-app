@@ -24,17 +24,20 @@ const MANUAL = [
   {
     id: 'central', titulo: 'Central: o seu painel', emoji: '🏠',
     resumo: 'A primeira tela. Tudo aqui é calculado dos seus lançamentos — não existe número fixo.',
-    imagem: 'ajuda/central.webp', legenda: 'A Central mostra saldo, o que entrou e saiu no mês, e a comparação com o mês anterior.',
+    imagem: 'ajuda/central.webp', legenda: 'A Central mostra saldo, as receitas e as despesas do mês, e a comparação com o mês anterior.',
     passos: [
-      'Os cinco cartões do topo são o resumo: <b>saldo somando as contas</b>, <b>entrou no mês</b>, <b>saiu no mês</b>, <b>sobrou (ou faltou)</b> e <b>contas a pagar em aberto</b>.',
+      'Os cinco cartões do topo são o resumo: <b>saldo somando as contas</b>, <b>receitas do mês</b>, <b>despesas do mês</b>, <b>sobrou (ou faltou)</b> e <b>contas a pagar em aberto</b>.',
       'A seta ▲▼ compara com o mês anterior. Ela fica verde quando a variação é boa para aquele número: receita subindo é verde, despesa subindo é vermelho.',
-      'O gráfico <b>Entrou x saiu</b> mostra os doze meses até o mês escolhido, e mais abaixo o mesmo comparativo ano a ano.',
+      'O gráfico <b>Receitas x despesas</b> mostra os doze meses do ano escolhido, e mais abaixo o mesmo comparativo ano a ano.',
       '<b>Para onde foi o dinheiro</b> quebra as despesas por categoria; <b>Quem mais recebeu</b> quebra por fornecedor.',
+      'As abas <b>Receitas</b> e <b>Despesas</b> abrem um painel só daquele lado: por tipo (categoria) e mês a mês, sempre no ano atual, e o total de cada um dos últimos cinco anos.',
+      'Os filtros <b>Banco</b> e <b>Conta</b> mostram a Central de um banco ou de uma conta só. Deixe em <b>Todos os bancos</b> e <b>Todas as contas</b> para ver tudo consolidado.',
       'Use ◀ ▶ para navegar entre os meses e <b>Hoje</b> para voltar ao mês corrente. O botão <b>Atualizar</b> recarrega na hora.'
     ],
     dicas: [
       'Cada vez que você abre a Central ela busca os números do servidor. Lançou algo agora? Volte para a Central e já aparece.',
-      'O saldo das contas é sempre o saldo de <b>hoje</b>, mesmo quando você está olhando um mês passado — é o dinheiro que existe agora.'
+      'O saldo das contas é sempre o saldo de <b>hoje</b>, mesmo quando você está olhando um mês passado — é o dinheiro que existe agora.',
+      'Com banco ou conta escolhidos, mudam saldo, receitas, despesas, gráficos e transferências. Contas a pagar, metas, orçamento e cartões continuam sendo de todas as contas.'
     ]
   },
   {
@@ -47,7 +50,7 @@ const MANUAL = [
       '🔴 <b>Categoria passou do limite</b> — o gasto do mês naquela categoria ultrapassou o que você planejou em Metas.',
       '🟡 <b>Conta vence nos próximos dias</b> — vencimento nos próximos cinco dias.',
       '🟡 <b>Meta vence em breve</b> — a meta tem prazo em menos de 60 dias e ainda não chegou a 80%.',
-      '🟡 <b>Saídas passaram as entradas</b> — o mês fechou (ou está fechando) no vermelho.',
+      '🟡 <b>Despesas passaram as receitas</b> — o mês fechou (ou está fechando) no vermelho.',
       '🟢 Sem nenhum desses, o painel diz que está tudo em dia.'
     ],
     dicas: ['O número no sininho, no alto da tela, é a contagem desses alertas. Zerou o sininho, zerou a pendência.']
@@ -84,9 +87,11 @@ const MANUAL = [
   },
   {
     id: 'lancamentos', titulo: 'Lançamentos: a tela do dia a dia', emoji: '🧾',
-    resumo: 'Todo dinheiro que entra e sai. Filtro por coluna igual ao do Excel.',
+    resumo: 'Todo dinheiro que entra e sai. Abre no mês atual, com filtro de período, banco, conta e categoria.',
     imagem: 'ajuda/lancamentos.webp', legenda: 'Cada linha é um lançamento. O rodapé soma o que está na tela.',
     passos: [
+      'A tela abre sempre no <b>mês atual</b>. Em <b>Período</b> você escolhe um dos meses anteriores, <b>Data inicial e data final</b> para um período à sua escolha, ou <b>Todos os lançamentos</b>.',
+      'Ao lado do período ficam <b>Banco</b>, <b>Conta</b> e <b>Categoria</b>. Escolher um banco mostra todas as contas dele; escolher a conta mostra só ela.',
       '<b>Novo lançamento</b> abre o formulário: data, tipo (entrada ou saída), conta, descrição, categoria, fornecedor e valor.',
       'O ✏️ de cada linha altera o lançamento. Ao salvar, o saldo da conta é recalculado — inclusive se você mudou a conta ou o valor.',
       'Com <b>fornecedor ou cliente</b> preenchido, a <b>categoria</b> que você escolher vale para todos os lançamentos dele: os outros são reclassificados na hora, e o aviso diz quantos mudaram.',
@@ -95,7 +100,7 @@ const MANUAL = [
       '<b>Exportar CSV</b> baixa exatamente o que está na tela, com os filtros aplicados.'
     ],
     dicas: [
-      'O rodapé sempre soma <b>o que está filtrado</b>, não o mês todo. É a forma mais rápida de responder "quanto gastei com isso?".',
+      'O rodapé sempre soma <b>o que está filtrado</b> dentro do período escolhido. É a forma mais rápida de responder "quanto gastei com isso?".',
       'Toda exclusão pede confirmação e mostra o efeito no saldo antes de acontecer.'
     ]
   },
@@ -106,7 +111,7 @@ const MANUAL = [
     passos: [
       'Clique no <b>título da coluna</b> (Data, Descrição, Conta, Categoria, Valor).',
       'Abre a lista com os valores existentes e a contagem de cada um. Marque um, alguns ou use <b>(Selecionar tudo)</b>.',
-      'A coluna Data vem agrupada por ano e mês, então você filtra "Agosto" sem digitar data nenhuma.',
+      'A lista traz os valores do período que está na tela. Para ver outro mês, troque o <b>Período</b> na barra acima da tabela.',
       'Confirme em <b>OK</b>. As etiquetas roxas no topo mostram os filtros ativos; o × de cada uma remove aquele filtro.',
       'Pode empilhar filtros de colunas diferentes — eles se somam.'
     ],
@@ -261,15 +266,18 @@ const MANUAL = [
   {
     id: 'emprestimos', titulo: 'Empréstimos e financiamentos', emoji: '🏦',
     resumo: 'Consignado, pessoal, CDC ou financiamento: o contrato inteiro, parcela por parcela.',
-    imagem: 'ajuda/emprestimos.webp', legenda: 'Cada contrato mostra o saldo devedor, a próxima parcela e se há alguma em atraso.',
+    imagem: 'ajuda/emprestimos.webp', legenda: 'Cada contrato mostra o saldo devedor, a próxima parcela, quantas já foram pagas e quantas faltam.',
     passos: [
       'Em <b>Empréstimos</b>, clique em <b>Novo empréstimo</b> e informe nome, banco, tipo, valor emprestado e número de parcelas.',
       'Em <b>Eu sei</b>, escolha o que você tem em mãos: <b>a taxa de juros</b> ou <b>o valor da parcela</b>. Com a parcela, o sistema descobre a taxa sozinho.',
       'Informe a data da primeira parcela e, se quiser, a conta que paga. A prévia mostra na hora a parcela, a taxa ao mês e ao ano, o total a pagar e os juros do contrato.',
       'Contrato antigo? O campo <b>Parcelas já pagas antes de hoje</b> já vem com as que venceram. Elas entram como pagas, sem mexer em nenhuma conta.',
-      'Clique em um contrato para ver o cronograma completo: vencimento, parcela, juros, amortização e saldo depois de cada uma.'
+      'No alto da tela ficam os totais: <b>parcelas já pagas</b>, <b>parcelas que faltam pagar</b>, <b>juros já pagos</b> e <b>economia pagando adiantado</b>.',
+      'A <b>Listagem dos contratos</b> traz um contrato por linha: data de vencimento, parcela/total, valor da parcela, valor pago, valor de juros e valor economizado.',
+      'Clique em um contrato para ver o cronograma completo: vencimento, valor da parcela, valor pago, juros, economizado, amortização e saldo depois de cada uma.'
     ],
     dicas: [
+      'Quando você antecipa uma parcela com desconto, o desconto sai dos <b>juros pagos</b> e aparece como <b>economizado</b> — os dois números nunca contam o mesmo dinheiro.',
       'O cálculo é o da Tabela Price, o mesmo que os bancos usam. Se o boleto ou o contrato trouxer um valor ou uma data diferente, corrija a parcela pelo lápis da linha.',
       'Contrato quitado aparece como <b>Quitado</b> sozinho quando a última parcela é paga. Para um contrato renegociado ou encerrado antes, use <b>Marcar como cancelado</b>.'
     ]

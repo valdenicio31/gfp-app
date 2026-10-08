@@ -52,9 +52,14 @@ async function textoDoArquivo(arquivo) {
   }
 }
 
+/* O reconhecimento de fornecedor e a classificação do que ficou sem categoria
+   olham os lançamentos mais recentes de qualquer data — a tela de Lançamentos
+   pode estar mostrando só um mês. */
+const historicoDeLancamentos = () => (lanc.historico && lanc.historico.length ? lanc.historico : lanc.itens);
+
 function contasDisponiveis() {
   if (lanc.contas.length) return lanc.contas;
-  return [...new Map(lanc.itens.map(t => [t.account_id, { id: t.account_id, name: t.account_name }])).values()];
+  return [...new Map(historicoDeLancamentos().map(t => [t.account_id, { id: t.account_id, name: t.account_name }])).values()];
 }
 
 // "extrato-nubank-agosto.csv" já diz para qual conta vai.
@@ -211,7 +216,7 @@ async function carregarParceiros() {
 function classificarLinhas() {
   for (const linha of imp.linhas) {
     if (linha.ensinado) continue;               // o que o usuário já ensinou não é mexido
-    const r = GFPFornecedores.reconhecer(linha.descricaoOriginal || linha.description, lanc.itens, imp.parceiros);
+    const r = GFPFornecedores.reconhecer(linha.descricaoOriginal || linha.description, historicoDeLancamentos(), imp.parceiros);
     linha.supplier = r.fornecedor || '';
     linha.category = r.categoria || '';
     linha.origem = r.origem;
@@ -522,13 +527,13 @@ async function guardarParceiro(dados) {
 async function classificarLancamentosPendentes(indiceDoGrupo = 0) {
   if (lanc.demo) return notify('🟡 No modo demonstração a classificação não é gravada');
   await carregarParceiros();
-  const pendentes = lanc.itens.filter(item => !item.category);
+  const pendentes = historicoDeLancamentos().filter(item => !item.category);
   if (!pendentes.length) return notify('🟢 Nenhum lançamento sem categoria');
 
   const grupos = GFPFornecedores.agruparParecidos(pendentes);
   const grupo = grupos[Math.min(indiceDoGrupo, grupos.length - 1)];
   const exemplo = grupo.exemplo;
-  const sugerido = GFPFornecedores.reconhecer(exemplo.description, lanc.itens.filter(i => i.category), imp.parceiros);
+  const sugerido = GFPFornecedores.reconhecer(exemplo.description, historicoDeLancamentos().filter(i => i.category), imp.parceiros);
 
   const fundo = caixaDeEnsino({
     exemplo: { ...exemplo, occurredOn: exemplo.occurred_on, amountCents: exemplo.amount_cents },
@@ -564,7 +569,7 @@ async function classificarLancamentosPendentes(indiceDoGrupo = 0) {
       fecharCaixa();
       notify(`🟢 ${resposta.updated} ${resposta.updated === 1 ? 'lançamento classificado' : 'lançamentos classificados'}`);
       await carregarLancamentos();
-      if (lanc.itens.some(item => !item.category)) classificarLancamentosPendentes(0);
+      if (historicoDeLancamentos().some(item => !item.category)) classificarLancamentosPendentes(0);
     } catch (falha) {
       botao.disabled = false;
       erro.textContent = falha.message;
@@ -585,7 +590,7 @@ function classificarPendentes(indiceDoGrupo) {
   const grupos = GFPFornecedores.agruparParecidos(pendentes);
   const grupo = grupos[Math.min(indiceDoGrupo, grupos.length - 1)];
   const exemplo = grupo.exemplo;
-  const sugerido = GFPFornecedores.reconhecer(exemplo.descricaoOriginal || exemplo.description, lanc.itens, imp.parceiros);
+  const sugerido = GFPFornecedores.reconhecer(exemplo.descricaoOriginal || exemplo.description, historicoDeLancamentos(), imp.parceiros);
   const quantos = grupo.linhas.length;
 
   const fundo = caixaDeEnsino({
@@ -694,12 +699,13 @@ async function converterEmLancamentos() {
   try {
     if (lanc.demo) {
       const conta = contasDisponiveis().find(c => c.id === imp.contaId);
-      lanc.itens = [...paraEnviar.map((linha, i) => ({
+      lanc.historico = [...paraEnviar.map((linha, i) => ({
         id: `demo-imp-${Date.now()}-${i}`,
         occurred_on: linha.occurredOn, description: linha.description, type: linha.type,
         amount_cents: linha.amountCents, category: linha.category, supplier: linha.supplier,
         account_id: imp.contaId, account_name: conta?.name || 'Conta'
-      })), ...lanc.itens];
+      })), ...lanc.historico];
+      lanc.itens = typeof noPeriodo === 'function' ? lanc.historico.filter(noPeriodo) : lanc.historico;
       fecharCaixa();
       imp.ocupado = false;
       desenharTela();

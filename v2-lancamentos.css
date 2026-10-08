@@ -736,3 +736,58 @@ body:not(.tela-emprestimos) #telaEmprestimos{display:none}
 #module-users,#module-profiles,
 .viewbar>div:first-child,
 .rolebar>span,.rolebar #roleSelect,.rolebar #permissionLabel{display:none!important}
+
+/* ---------- Empréstimos: resumo de cinco números e listagem dos contratos ---------- */
+.met-resumo.cinco{grid-template-columns:repeat(5,1fr)}
+.emp-tabela tfoot td{font-weight:800;border-top:2px solid var(--border);border-bottom:0;background:#faf8fd}
+.emp-tabela td.bom{color:#15803d;font-weight:700}
+.emp-tabela td small.ruim{color:#b91c1c;font-weight:700}
+.emp-listagem tbody tr{cursor:pointer}
+.emp-listagem tbody tr:hover td,.emp-listagem tbody tr:focus-visible td{background:#f9f5ff}
+.emp-listagem tbody tr:focus-visible{outline:0}
+.emp-listagem tr.cancelado td{color:var(--muted)}
+.emp-listagem td b{display:block}
+@media(max-width:1180px){.met-resumo.cinco{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.met-resumo.cinco{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.met-resumo.cinco{grid-template-columns:1fr}}
+
+/* ---------- Lançamentos: barra de período, banco, conta e categoria ---------- */
+.lanc-periodo-titulo{font-weight:700;color:var(--purple);font-size:.72em;letter-spacing:0;white-space:nowrap}
+.lanc-recorte{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.lanc-recorte label{display:grid;gap:5px;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;min-width:0}
+.lanc-recorte select,.lanc-recorte input{border:1px solid var(--border);border-radius:9px;padding:9px 11px;font:600 13.5px/1.2 inherit;color:var(--text);background:#fff;text-transform:none;letter-spacing:0;max-width:100%;min-width:150px}
+.lanc-recorte select:focus,.lanc-recorte input:focus{outline:2px solid var(--purple);outline-offset:1px;border-color:var(--purple)}
+.lanc-recorte .sep{align-self:stretch;width:1px;background:var(--border);margin:0 2px}
+.lanc-recorte .aplicar{border:0;background:var(--purple);color:#fff;border-radius:9px;padding:11px 15px;font:800 13px/1 inherit;cursor:pointer}
+.lanc-recorte .aplicar:hover{filter:brightness(1.08)}
+.lanc-recorte-erro{flex-basis:100%;margin:0;color:#b91c1c;font-size:12.5px;font-weight:600}
+.lanc-recorte-erro:empty{display:none}
+@media(max-width:760px){
+  .lanc-recorte label{flex:1 1 150px}
+  .lanc-recorte select,.lanc-recorte input{width:100%;min-width:0}
+  .lanc-recorte .sep{display:none}
+}
+
+/* ---------- Central: abas, filtro por banco e conta, painéis de receitas e despesas ---------- */
+.pnl-barra{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;justify-content:space-between}
+.pnl-abas{display:flex;gap:6px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:5px;flex-wrap:wrap}
+.pnl-abas button{border:0;background:transparent;color:var(--muted);border-radius:8px;padding:9px 15px;font:800 13px/1 inherit;cursor:pointer}
+.pnl-abas button:hover{color:var(--purple)}
+.pnl-abas button[aria-selected="true"]{background:var(--purple);color:#fff}
+.pnl-recorte{border:0;padding:0;background:transparent;border-radius:0}
+.pnl-recorte-aviso{background:#f9f5ff;border:1px solid #e0d4fb;border-radius:12px;padding:10px 14px;font-size:13px;color:#5b5169;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pnl-recorte-aviso b{color:var(--text)}
+.pnl-recorte-aviso button{border:1px solid var(--border);background:#fff;color:#5b21b6;border-radius:8px;padding:7px 11px;font:800 12px/1 inherit;cursor:pointer;margin-left:auto}
+.pnl-kpis.quatro{grid-template-columns:repeat(4,1fr)}
+.pnl-grafico.uma .pnl-duplo i{width:58%;max-width:38px}
+.pnl-grafico.uma .pnl-col{min-width:46px}
+.pnl-col b.pnl-valor{font-size:10.5px;font-weight:800;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums;min-height:13px}
+.pnl-anos em.neutro{color:var(--muted)}
+@media(max-width:1180px){.pnl-kpis.quatro{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){
+  .pnl-barra{align-items:stretch}
+  .pnl-abas button{flex:1}
+  .pnl-grafico.uma .pnl-col{min-width:40px}
+}
+/* sem isto o gráfico de 12 barras empurra a coluna para fora da tela no celular */
+.pnl-duas>*{min-width:0}
