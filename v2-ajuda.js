@@ -325,7 +325,7 @@ const MANUAL = [
     id: 'problemas', titulo: 'Quando algo dá errado', emoji: '🛠️',
     resumo: 'Os tropeços mais comuns e o que fazer.',
     passos: [
-      '<b>A primeira tela demora para carregar</b> — o servidor hiberna quando fica sem uso e leva até um minuto para acordar. Da segunda vez em diante é rápido.',
+      '<b>A primeira tela demora para carregar</b> — confira a sua internet e use <b>Atualizar</b>. Se continuar, fale com o suporte.',
       '<b>A tela parece antiga depois de uma atualização</b> — segure <kbd>Ctrl</kbd> e aperte <kbd>F5</kbd> (no Mac, <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>).',
       '<b>Aparece um aviso vermelho "não consegui carregar"</b> — clique em <b>Tentar de novo</b>. Se insistir, é sinal de internet instável ou servidor acordando.',
       '<b>A importação recusou o arquivo</b> — confirme que é o extrato (OFX, CSV, TXT ou PDF) e que tem menos de 8 MB. Se o PDF vier como imagem digitalizada, exporte em OFX ou CSV pelo aplicativo do banco.',

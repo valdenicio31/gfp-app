@@ -430,7 +430,7 @@ function desenharTela() {
     ${lanc.erroCarga ? `
       <div class="lanc-falha">
         <div>${svg('alerta')}<span><b>Não consegui carregar seus lançamentos e contas</b>
-          <small>${seguro(lanc.erroCarga)} — se a instância estava dormindo, a primeira tentativa demora até 50 segundos.</small></span></div>
+          <small>${seguro(lanc.erroCarga)} — confira a sua internet e tente de novo.</small></span></div>
         <button id="lancTentarDeNovo">Tentar de novo</button>
       </div>` : ''}
 

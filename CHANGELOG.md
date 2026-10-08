@@ -25,6 +25,12 @@ Cada publicação altera, no mesmo commit:
 
 ---
 
+## 2.2.1 — 08/10/2026 · Endereço próprio e servidor sempre ligado
+
+- Domínio próprio `gfp.viaiasolucoes.com` (CNAME para o site estático no Render) e API em instância paga, que não hiberna. Saíram do manual e da tela de Lançamentos os avisos de "servidor dormindo".
+- Cobrança, primeira peça: `api/src/cobranca.js` lê `ASAAS_API_KEY` e `ASAAS_API_URL` e confere a conexão com o Asaas. `GET /billing/status` (autenticado, resultado guardado por um minuto) devolve se está configurada, o ambiente e se a conexão funciona — nunca a chave nem dados da conta.
+- Testes: `tests/cobranca.test.mjs`.
+
 ## 2.2.0 — 08/10/2026 · Período, banco e conta — e painéis de receitas e despesas
 
 - Lançamentos abre sempre no mês atual. O campo Período escolhe um mês anterior, uma data inicial e uma final, ou todos os lançamentos; ao lado ficam os filtros de banco, conta e categoria.

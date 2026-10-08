@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { registrarEmprestimos } from './emprestimos.js';
 import { deveReplicar, replicarCategoriaDoFornecedor } from './categoria-fornecedor.js';
 import { recortePedido, sqlDoRecorte, parametrosDoRecorte, contaNoRecorte, painelDoAno } from './painel.js';
+import { registrarCobranca } from './cobranca.js';
 
 // Versão publicada: a mesma do versao.js do site (o teste confere).
 const VERSAO = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -1823,6 +1824,9 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 
 // Empréstimos: rotas em emprestimos.js, com o banco e a autenticação daqui.
 registrarEmprestimos(app, { query, transaction, requireAuth, allowRoles, contaGravavel, isUuid });
+
+// Cobrança (Asaas): rotas em cobranca.js. Por enquanto, só a conferência da conexão.
+registrarCobranca(app, { requireAuth });
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 app.use((error, _req, res, _next) => {

@@ -10,9 +10,18 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '2.2.0', data: '2026-10-08' };
+const GFP_VERSAO = { numero: '2.2.1', data: '2026-10-08' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '2.2.1', data: '2026-10-08', titulo: 'Endereço próprio e servidor sempre ligado',
+    resumo: 'O GFP passa a atender em gfp.viaiasolucoes.com, e o servidor não hiberna mais.',
+    itens: [
+      ['melhoria', 'Novo endereço: gfp.viaiasolucoes.com. O endereço antigo continua funcionando.'],
+      ['melhoria', 'O servidor fica sempre ligado: acabou a espera de até um minuto na primeira tela.'],
+      ['melhoria', 'Preparação da cobrança: o sistema confere a conexão com o meio de pagamento.']
+    ]
+  },
   {
     numero: '2.2.0', data: '2026-10-08', titulo: 'Período, banco e conta — e painéis de receitas e despesas',
     resumo: 'Lançamentos abre no mês atual e filtra por período, banco, conta e categoria. A Central ganha os painéis de Receitas e de Despesas. Empréstimos mostra parcelas pagas, a pagar, juros e economia.',
