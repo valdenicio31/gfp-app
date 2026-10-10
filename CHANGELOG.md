@@ -25,6 +25,14 @@ Cada publicação altera, no mesmo commit:
 
 ---
 
+## 2.4.0 — 10/10/2026 · Painel do dono
+
+- Tela **Clientes** (`v2-dono.js`), visível só para os e-mails de dono: adimplentes, inadimplentes, contas em teste, receita mensal recorrente, recebido no mês, lista com filtro, busca e exportação em CSV.
+- API em `api/src/dono.js`: `GET /owner/me`, `GET /owner/accounts`, `POST /owner/accounts/:id/courtesy` e `POST /owner/accounts/:id/trial`. Quem não é dono recebe 404. As consultas leem só cadastro e assinatura — nunca lançamentos, saldos ou contas do cliente. As ações ficam em `audit_events`.
+- Donos: `valdenicio31@gmail.com` e `contato@viaiasolucoes.com`, ou a lista da variável `OWNER_EMAILS`. O acesso exige e-mail confirmado (`users.email_verified_at`, migração `017_dono.sql`): contas anteriores a 10/10/2026 contam como confirmadas; as novas confirmam ao redefinir a senha pelo link do e-mail.
+- No histórico de novidades que o cliente vê, esta versão aparece só como ajuste interno.
+- Testes: `tests/dono.test.mjs`.
+
 ## 2.3.0 — 08/10/2026 · Assinatura: teste grátis, planos e pagamento
 
 - Licença de verdade. `api/src/licenca.js` calcula a situação da conta (cortesia, teste, ativa, atrasada, suspensa, cancelada, encerrada) e o acesso (total ou só consulta). Toda rota autenticada que grava passa pela conferência em `requireAuth` e responde 402 quando a conta está só para consulta; leitura e exportação continuam liberadas.

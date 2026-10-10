@@ -141,7 +141,8 @@ router.post('/confirm', resetLimiter, async (req, res) => {
         throw error;
       }
 
-      await client.query('update users set password_hash=$1 where id=$2', [passwordHash, reset.user_id]);
+      // quem chegou aqui recebeu o link no e-mail: o endereço é dele
+      await client.query('update users set password_hash=$1, email_verified_at=coalesce(email_verified_at, now()) where id=$2', [passwordHash, reset.user_id]);
       await client.query('update password_reset_tokens set used_at=now() where user_id=$1 and used_at is null', [reset.user_id]);
     });
     res.json({ message: 'Senha atualizada. Você já pode entrar com a nova senha.' });

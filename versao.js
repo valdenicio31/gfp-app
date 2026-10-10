@@ -10,9 +10,17 @@
    - Y muda quando entra funcionalidade nova;
    - Z muda com correção de erro ou ajuste pequeno, sem funcionalidade nova. */
 
-const GFP_VERSAO = { numero: '2.3.0', data: '2026-10-08' };
+const GFP_VERSAO = { numero: '2.4.0', data: '2026-10-10' };
 
 const GFP_HISTORICO = [
+  {
+    numero: '2.4.0', data: '2026-10-10', titulo: 'Ajustes internos',
+    resumo: 'Melhorias na administração do serviço. Nada muda no seu uso do dia a dia.',
+    itens: [
+      ['melhoria', 'Ferramentas internas de acompanhamento das assinaturas.'],
+      ['melhoria', 'Redefinir a senha pelo link do e-mail passa a confirmar o seu endereço de e-mail.']
+    ]
+  },
   {
     numero: '2.3.0', data: '2026-10-08', titulo: 'Assinatura: teste grátis, planos e pagamento',
     resumo: 'Contas novas começam com 14 dias de teste, e a tela Assinatura permite contratar, acompanhar e cancelar.',

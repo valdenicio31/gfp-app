@@ -15,6 +15,7 @@ import { registrarEmprestimos } from './emprestimos.js';
 import { deveReplicar, replicarCategoriaDoFornecedor } from './categoria-fornecedor.js';
 import { recortePedido, sqlDoRecorte, parametrosDoRecorte, contaNoRecorte, painelDoAno } from './painel.js';
 import { registrarCobranca, licencaDaFamilia, iniciarTeste, garantirWebhook } from './cobranca.js';
+import { registrarDono } from './dono.js';
 
 // Versão publicada: a mesma do versao.js do site (o teste confere).
 const VERSAO = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -1850,6 +1851,9 @@ registrarEmprestimos(app, { query, transaction, requireAuth, allowRoles, contaGr
 
 // Cobrança (Asaas): rotas em cobranca.js. Usam a autenticação pura — ver requireAuth acima.
 registrarCobranca(app, { query, requireAuth: autenticar, allowRoles });
+
+// Painel do dono: a lista de clientes e a situação de cada assinatura. Só para os e-mails de dono.
+registrarDono(app, { query, requireAuth: autenticar });
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 app.use((error, _req, res, _next) => {
